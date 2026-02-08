@@ -190,3 +190,33 @@
   margin: 2px 0 0;
   line-height: 1.4;
 }
+
+/* ── Light theme fixes ── */
+.version-node__badge--current {
+  background: var(--status-green-bg);
+  color: var(--accent-green);
+}
+
+.version-node__badge--anchor {
+  background: var(--status-yellow-bg);
+  color: var(--accent-yellow);
+}
+
+.version-node__restore-btn:hover {
+  border-color: var(--c1-primary);
+  color: var(--c1-primary);
+  background: var(--c1-primary-light);
+}
+
+/* ── Restore dialog light theme ── */
+.version-restore-dialog__btn--rollback {
+  background: var(--status-red-bg);
+  color: var(--accent-red);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.version-restore-dialog__btn--refocus {
+  background: var(--status-yellow-bg);
+  color: var(--accent-yellow);
+  border-color: rgba(245, 158, 11, 0.2);
+}

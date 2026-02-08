@@ -58,3 +58,14 @@
 .backtrack-bar__btn--clear:hover {
   background: rgba(245, 158, 11, 0.15);
 }
+
+/* ── Light theme fixes ── */
+.backtrack-bar__label strong {
+  color: var(--accent-yellow);
+}
+
+.backtrack-bar__btn--clear {
+  background: transparent;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--accent-yellow);
+}

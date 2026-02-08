@@ -136,3 +136,25 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .conversation-stream {
+    padding: 12px;
+  }
+  .conversation-stream__items {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .conversation-stream {
+    padding: 8px;
+  }
+  .conversation-stream__items {
+    gap: 8px;
+  }
+  .conversation-stream__spine {
+    left: 24px;
+  }
+}

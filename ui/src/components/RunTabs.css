@@ -243,3 +243,19 @@
   font-size: 14px;
   animation: runSelectorPulse 2s infinite;
 }
+
+/* ── Compact run selector for new layout ── */
+.run-selector {
+  margin-bottom: 0;
+}
+.run-selector__row {
+  padding: 2px 0;
+}
+.run-selector__label {
+  font-size: 12px;
+}
+.run-selector__dropdown {
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}

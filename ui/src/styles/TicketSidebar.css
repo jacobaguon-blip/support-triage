@@ -214,3 +214,36 @@
 .ticket-item.status-complete:hover {
   opacity: 1;
 }
+
+/* ── Responsive Sidebar ── */
+@media (max-width: 1100px) {
+  .ticket-sidebar {
+    width: 260px;
+  }
+  .sidebar-header {
+    padding: 12px 16px;
+  }
+  .sidebar-header h2 {
+    font-size: 1em;
+  }
+  .ticket-item {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ticket-sidebar {
+    width: 220px;
+  }
+  .ticket-item-body {
+    font-size: 0.85em;
+  }
+  .sidebar-filters {
+    padding: 8px;
+    gap: 4px;
+  }
+  .filter-btn {
+    padding: 4px 8px;
+    font-size: 0.85em;
+  }
+}
