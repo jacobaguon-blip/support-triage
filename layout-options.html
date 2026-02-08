@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Run Tabs Layout Options</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0d0d; color: #e0e0e0; padding: 32px; }
+
+  h1 { font-size: 22px; margin-bottom: 8px; color: #fff; }
+  .subtitle { font-size: 14px; color: #888; margin-bottom: 40px; }
+
+  .option { margin-bottom: 60px; border: 1px solid #333; border-radius: 16px; overflow: hidden; }
+  .option-header { padding: 16px 24px; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 12px; }
+  .option-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .option-badge.recommended { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+  .option-badge.alt { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+  .option-title { font-size: 16px; font-weight: 600; }
+  .option-desc { font-size: 13px; color: #999; padding: 12px 24px; background: #151515; border-bottom: 1px solid #2a2a2a; line-height: 1.6; }
+
+  /* ===== MOCKUP FRAME ===== */
+  .mockup { background: #1a1a1a; padding: 0; }
+  .mockup-topbar { background: #111; padding: 8px 16px; font-size: 11px; color: #666; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 8px; }
+  .mockup-topbar .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .mockup-topbar .dot.r { background: #ef4444; }
+  .mockup-topbar .dot.y { background: #f59e0b; }
+  .mockup-topbar .dot.g { background: #10b981; }
+
+  .mockup-body { display: flex; min-height: 520px; }
+
+  /* Left sidebar */
+  .sidebar { width: 180px; background: #141414; border-right: 1px solid #2a2a2a; padding: 12px; flex-shrink: 0; }
+  .sidebar-title { font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 600; }
+  .sidebar-item { padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-bottom: 4px; cursor: pointer; border: 1px solid transparent; }
+  .sidebar-item.active { background: #1e293b; border-color: #334155; }
+  .sidebar-item .sid-label { color: #ccc; font-weight: 500; }
+  .sidebar-item .sid-sub { color: #666; font-size: 10px; display: block; margin-top: 2px; }
+
+  /* Center detail */
+  .detail { width: 260px; background: #161616; border-right: 1px solid #2a2a2a; padding: 16px; flex-shrink: 0; }
+  .detail-id { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .detail-summary { font-size: 12px; color: #888; margin-bottom: 12px; }
+  .detail-row { display: flex; justify-content: space-between; font-size: 11px; padding: 4px 0; border-bottom: 1px solid #222; }
+  .detail-row .label { color: #666; }
+  .detail-row .value { color: #ccc; }
+
+  /* Right panel */
+  .right-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* ===== RUN TABS ===== */
+  .run-tabs-bar { display: flex; gap: 0; background: #111; border-bottom: 2px solid #222; padding: 0 16px; }
+  .run-tab { padding: 10px 18px; font-size: 13px; font-weight: 500; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .run-tab:hover { color: #ccc; }
+  .run-tab.active { color: #fff; border-bottom-color: #3b82f6; }
+  .run-tab .tab-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .run-tab .tab-dot.running { background: #3b82f6; }
+  .run-tab .tab-dot.complete { background: #10b981; }
+  .run-tab .tab-dot.superseded { background: #666; }
+  .run-tab .tab-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .run-tab .tab-badge.initial { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .run-tab .tab-badge.reset { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .reset-btn { margin-left: auto; padding: 5px 12px; font-size: 11px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 5px; color: #f87171; cursor: pointer; display: flex; align-items: center; gap: 4px; align-self: center; }
+
+  /* ===== PHASE PROGRESS ===== */
+  .phase-bar { display: flex; align-items: center; padding: 16px 20px; background: #161616; border-bottom: 1px solid #2a2a2a; gap: 0; }
+  .phase-step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+  .phase-circle { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .phase-circle.done { background: #10b981; color: #fff; }
+  .phase-circle.active { background: #f59e0b; color: #fff; }
+  .phase-circle.pending { background: #333; color: #666; }
+  .phase-label { font-size: 10px; color: #888; text-align: center; }
+  .phase-line { flex: 0 0 40px; height: 2px; margin-bottom: 20px; }
+  .phase-line.done { background: #10b981; }
+  .phase-line.active { background: linear-gradient(90deg, #10b981, #f59e0b); }
+  .phase-line.pending { background: #333; }
+
+  /* ===== CONTENT AREA ===== */
+  .content-area { flex: 1; padding: 20px; overflow-y: auto; }
+  .content-placeholder { padding: 24px; background: #1e1e1e; border-radius: 10px; border: 1px dashed #333; text-align: center; color: #666; font-size: 13px; margin-bottom: 12px; }
+
+  /* View toggle */
+  .view-toggle-bar { display: flex; padding: 0 16px; background: #141414; border-bottom: 1px solid #2a2a2a; }
+  .view-toggle { padding: 8px 16px; font-size: 12px; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .view-toggle.active { color: #fff; border-bottom-color: #6366f1; }
+
+  /* Conversation items */
+  .convo-item { padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; line-height: 1.5; }
+  .convo-item.agent { background: #1e293b; border: 1px solid #334155; }
+  .convo-item.system { background: #1a1a2e; border: 1px solid #2d2d5e; }
+  .convo-item .convo-actor { font-weight: 600; font-size: 11px; margin-bottom: 3px; }
+  .convo-item .convo-actor.agent-name { color: #60a5fa; }
+  .convo-item .convo-actor.system-name { color: #a78bfa; }
+  .convo-item .convo-text { color: #bbb; }
+
+  /* Annotations */
+  .annotation { position: absolute; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px; z-index: 10; pointer-events: none; }
+  .annotation.red { background: rgba(239,68,68,0.9); color: #fff; }
+  .annotation.green { background: rgba(16,185,129,0.9); color: #fff; }
+  .annotation.blue { background: rgba(59,130,246,0.9); color: #fff; }
+  .annotation.yellow { background: rgba(245,158,11,0.9); color: #000; }
+
+  /* Arrow callouts */
+  .callout { padding: 10px 14px; border-radius: 8px; font-size: 12px; line-height: 1.5; margin: 12px 20px; }
+  .callout.green-callout { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); color: #34d399; }
+  .callout.blue-callout { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.25); color: #60a5fa; }
+
+  /* Separator */
+  .section-sep { border: 0; border-top: 1px solid #2a2a2a; margin: 40px 0; }
+
+  /* Key differences */
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px; }
+  .diff-card { padding: 14px; border-radius: 8px; font-size: 12px; line-height: 1.6; }
+  .diff-card.pro { background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); }
+  .diff-card.con { background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); }
+  .diff-card .diff-label { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px; }
+  .diff-card.pro .diff-label { color: #34d399; }
+  .diff-card.con .diff-label { color: #f87171; }
+  .diff-card .diff-text { color: #999; }
+</style>
+</head>
+<body>
+
+<h1>Investigation Runs — Layout Options</h1>
+<p class="subtitle">Mockups for how run tabs integrate with the phase progress bar and conversation view</p>
+
+<!-- ========== OPTION A ========== -->
+<div class="option">
+  <div class="option-header">
+    <span class="option-badge recommended">Recommended</span>
+    <span class="option-title">Option A: Tabs Above Phase Bar, Per-Run Progress</span>
+  </div>
+  <div class="option-desc">
+    Run tabs sit at the very top of the right panel. Each tab owns its own phase progress bar.
+    Switching tabs changes both the progress indicator AND the content below (conversation, summary, etc).
+    The Conversation view is scoped to the selected run.
+  </div>
+  <div class="mockup">
+    <div class="mockup-topbar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span style="margin-left: 8px;">Support Triage System — Option A</span>
+    </div>
+    <div class="mockup-body">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-title">Investigations</div>
+        <div class="sidebar-item active">
+          <span class="sid-label">#8254</span>
+          <span class="sid-sub">Trading212 · Product Bug</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sid-label">#8244</span>
+          <span class="sid-sub">Lookout · Feature Request</span>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail">
+        <div class="detail-id">#8254</div>
+        <div class="detail-summary">Blank 'Review policy' after UI update</div>
+        <div class="detail-row"><span class="label">Customer</span><span class="value">Trading212</span></div>
+        <div class="detail-row"><span class="label">Classification</span><span class="value">Product Bug</span></div>
+        <div class="detail-row"><span class="label">Priority</span><span class="value" style="color:#f59e0b">P3</span></div>
+        <div class="detail-row"><span class="label">Status</span><span class="value" style="color:#f59e0b">waiting</span></div>
+      </div>
+
+      <!-- Right panel -->
+      <div class="right-panel">
+        <!-- RUN TABS — TOP LEVEL -->
+        <div class="run-tabs-bar">
+          <div class="run-tab" style="opacity: 0.5;">
+            <span class="tab-dot superseded"></span>
+            Investigation 1
+            <span class="tab-badge initial">Initial</span>
+          </div>
+          <div class="run-tab active">
+            <span class="tab-dot running"></span>
+            Investigation 2
+            <span class="tab-badge reset">Reset</span>
+          </div>
+          <div class="reset-btn">🔄 Reset</div>
+        </div>
+
+        <!-- PHASE BAR — SCOPED TO SELECTED RUN -->
+        <div class="phase-bar">
+          <div class="phase-step">
+            <div class="phase-circle done">✓</div>
+            <div class="phase-label">Classification</div>
+          </div>
+          <div class="phase-line done"></div>
+          <div class="phase-step">
+            <div class="phase-circle done">✓</div>
+            <div class="phase-label">Context<br>Gathering</div>
+          </div>
+          <div class="phase-line active"></div>
+          <div class="phase-step">
+            <div class="phase-circle active">3</div>
+            <div class="phase-label">Investigation</div>
+          </div>
+          <div class="phase-line pending"></div>
+          <div class="phase-step">
+            <div class="phase-circle pending">4</div>
+            <div class="phase-label">Solution<br>Review</div>
+          </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="view-toggle-bar">
+          <div class="view-toggle active">Conversation</div>
+          <div class="view-toggle">Classic</div>
+        </div>
+
+        <!-- Content -->
+        <div class="content-area">
+          <div class="callout green-callout">
+            ↑ Phase bar reflects <strong>Investigation 2's</strong> progress (currently in Phase 3).
+            Switching to "Investigation 1" tab would show all 4 phases completed.
+          </div>
+
+          <div class="convo-item system">
+            <div class="convo-actor system-name">System</div>
+            <div class="convo-text">🔄 Hard reset — starting fresh as Investigation 2</div>
+          </div>
+          <div class="convo-item agent">
+            <div class="convo-actor agent-name">Classifier Agent</div>
+            <div class="convo-text">Classified as Product Bug in Policies area. Pylon priority P3, suggesting P2 upgrade...</div>
+          </div>
+          <div class="convo-item agent">
+            <div class="convo-actor agent-name">Research Agent</div>
+            <div class="convo-text">Gathering context from Pylon, Slack, and Linear for #8254...</div>
+          </div>
+
+          <div class="callout blue-callout">
+            ↑ Conversation is scoped to <strong>Investigation 2 only</strong>.
+            Investigation 1's conversation lives in its own tab.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diff-grid" style="margin-top:16px">
+    <div class="diff-card pro">
+      <div class="diff-label">Strengths</div>
+      <div class="diff-text">
+        Clear mental model — each tab is a complete investigation with its own progress + conversation.
+        Easy to compare runs side by side by switching tabs.
+        Conversation view naturally scoped per-run, no confusion about which messages belong where.
+      </div>
+    </div>
+    <div class="diff-card con">
+      <div class="diff-label">Trade-offs</div>
+      <div class="diff-text">
+        Phase bar re-renders on tab switch.
+        With many runs (5+), tab bar needs horizontal scroll.
+        Need to store per-run phase state in the database (already implemented).
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== OPTION B ========== -->
+<div class="option">
+  <div class="option-header">
+    <span class="option-badge alt">Alternative</span>
+    <span class="option-title">Option B: Tabs Replace View Toggle, Inline Progress</span>
+  </div>
+  <div class="option-desc">
+    Run tabs replace the Conversation/Classic toggle. Each run tab shows a small inline progress indicator
+    (dots instead of full bar). The full phase bar stays fixed and always shows the <em>latest</em> run's progress.
+    Past runs show their content as read-only with a "completed" or "superseded" banner.
+  </div>
+  <div class="mockup">
+    <div class="mockup-topbar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span style="margin-left: 8px;">Support Triage System — Option B</span>
+    </div>
+    <div class="mockup-body">
+      <div class="sidebar">
+        <div class="sidebar-title">Investigations</div>
+        <div class="sidebar-item active">
+          <span class="sid-label">#8254</span>
+          <span class="sid-sub">Trading212 · Product Bug</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sid-label">#8244</span>
+          <span class="sid-sub">Lookout · Feature Request</span>
+        </div>
+      </div>
+
+      <div class="detail">
+        <div class="detail-id">#8254</div>
+        <div class="detail-summary">Blank 'Review policy' after UI update</div>
+        <div class="detail-row"><span class="label">Customer</span><span class="value">Trading212</span></div>
+        <div class="detail-row"><span class="label">Classification</span><span class="value">Product Bug</span></div>
+        <div class="detail-row"><span class="label">Priority</span><span class="value" style="color:#f59e0b">P3</span></div>
+        <div class="detail-row"><span class="label">Status</span><span class="value" style="color:#f59e0b">waiting</span></div>
+      </div>
+
+      <div class="right-panel">
+        <!-- PHASE BAR — Always shows LATEST run -->
+        <div class="phase-bar">
+          <div class="phase-step">
+            <div class="phase-circle done">✓</div>
+            <div class="phase-label">Classification</div>
+          </div>
+          <div class="phase-line done"></div>
+          <div class="phase-step">
+            <div class="phase-circle done">✓</div>
+            <div class="phase-label">Context<br>Gathering</div>
+          </div>
+          <div class="phase-line active"></div>
+          <div class="phase-step">
+            <div class="phase-circle active">3</div>
+            <div class="phase-label">Investigation</div>
+          </div>
+          <div class="phase-line pending"></div>
+          <div class="phase-step">
+            <div class="phase-circle pending">4</div>
+            <div class="phase-label">Solution<br>Review</div>
+          </div>
+        </div>
+
+        <!-- RUN TABS replace Conversation/Classic toggle -->
+        <div class="run-tabs-bar" style="background:#141414; border-bottom-color:#2a2a2a;">
+          <div class="run-tab" style="opacity:0.5; font-size:12px;">
+            <span class="tab-dot superseded"></span>
+            Run 1
+            <span style="font-size:9px; color:#666;">✓✓✓✓</span>
+          </div>
+          <div class="run-tab active" style="font-size:12px; border-bottom-color:#6366f1;">
+            <span class="tab-dot running"></span>
+            Run 2
+            <span style="font-size:9px; color:#f59e0b;">✓✓●○</span>
+          </div>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; padding-right: 4px;">
+            <div class="view-toggle active" style="padding:6px 10px; font-size:11px;">Conversation</div>
+            <div class="view-toggle" style="padding:6px 10px; font-size:11px;">Classic</div>
+          </div>
+          <div class="reset-btn" style="margin-left:0;">🔄</div>
+        </div>
+
+        <div class="content-area">
+          <div class="callout blue-callout">
+            ↑ Phase bar always shows latest run. Run tabs sit below it with inline progress dots (✓✓●○).
+            Conversation/Classic toggle is nested alongside run tabs.
+          </div>
+
+          <div class="convo-item system">
+            <div class="convo-actor system-name">System</div>
+            <div class="convo-text">🔄 Hard reset — starting fresh as Run 2</div>
+          </div>
+          <div class="convo-item agent">
+            <div class="convo-actor agent-name">Classifier Agent</div>
+            <div class="convo-text">Classified as Product Bug in Policies area...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diff-grid" style="margin-top:16px">
+    <div class="diff-card pro">
+      <div class="diff-label">Strengths</div>
+      <div class="diff-text">
+        More compact — phase bar stays constant, less visual jumping when switching runs.
+        Inline dots give quick glance at each run's progress without needing to switch.
+        Conversation/Classic toggle preserved alongside run tabs.
+      </div>
+    </div>
+    <div class="diff-card con">
+      <div class="diff-label">Trade-offs</div>
+      <div class="diff-text">
+        Phase bar can be misleading when viewing an older run (shows latest run's progress).
+        Two levels of tabs (runs + view toggle) in one row may feel crowded.
+        Less clear separation between runs.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== OPTION C ========== -->
+<div class="option">
+  <div class="option-header">
+    <span class="option-badge alt">Alternative</span>
+    <span class="option-title">Option C: Dropdown Selector + Persistent Phase Bar</span>
+  </div>
+  <div class="option-desc">
+    Instead of tabs, a dropdown selector at the top lets you switch runs.
+    The phase bar updates to reflect the selected run.
+    Saves horizontal space when there are many runs.
+  </div>
+  <div class="mockup">
+    <div class="mockup-topbar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span style="margin-left: 8px;">Support Triage System — Option C</span>
+    </div>
+    <div class="mockup-body">
+      <div class="sidebar">
+        <div class="sidebar-title">Investigations</div>
+        <div class="sidebar-item active">
+          <span class="sid-label">#8254</span>
+          <span class="sid-sub">Trading212 · Product Bug</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sid-label">#8244</span>
+          <span class="sid-sub">Lookout · Feature Request</span>
+        </div>
+      </div>
+
+      <div class="detail">
+        <div class="detail-id">#8254</div>
+        <div class="detail-summary">Blank 'Review policy' after UI update</div>
+        <div class="detail-row"><span class="label">Customer</span><span class="value">Trading212</span></div>
+        <div class="detail-row"><span class="label">Classification</span><span class="value">Product Bug</span></div>
+        <div class="detail-row"><span class="label">Priority</span><span class="value" style="color:#f59e0b">P3</span></div>
+        <div class="detail-row"><span class="label">Status</span><span class="value" style="color:#f59e0b">waiting</span></div>
+      </div>
+
+      <div class="right-panel">
+        <!-- Dropdown row -->
+        <div style="display:flex; align-items:center; padding:10px 16px; background:#111; border-bottom:1px solid #333; gap:12px;">
+          <span style="font-size:11px; color:#888; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Run:</span>
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 12px; background:#1e1e1e; border:1px solid #333; border-radius:6px; cursor:pointer;">
+            <span class="tab-dot running" style="width:6px;height:6px;border-radius:50%;background:#3b82f6;"></span>
+            <span style="font-size:13px; color:#fff;">Investigation 2</span>
+            <span style="font-size:9px; padding:1px 5px; border-radius:3px; background:rgba(245,158,11,0.15); color:#fbbf24;">RESET</span>
+            <span style="color:#666; font-size:12px; margin-left:4px;">▾</span>
+          </div>
+          <span style="font-size:11px; color:#666;">of 2 runs</span>
+          <div class="reset-btn" style="margin-left:auto;">🔄 Reset</div>
+        </div>
+
+        <!-- Phase bar -->
+        <div class="phase-bar">
+          <div class="phase-step">
+            <div class="phase-circle done">✓</div>
+            <div class="phase-label">Classification</div>
+          </div>
+          <div class="phase-line done"></div>
+          <div class="phase-step">
+            <div class="phase-circle done">✓</div>
+            <div class="phase-label">Context<br>Gathering</div>
+          </div>
+          <div class="phase-line active"></div>
+          <div class="phase-step">
+            <div class="phase-circle active">3</div>
+            <div class="phase-label">Investigation</div>
+          </div>
+          <div class="phase-line pending"></div>
+          <div class="phase-step">
+            <div class="phase-circle pending">4</div>
+            <div class="phase-label">Solution<br>Review</div>
+          </div>
+        </div>
+
+        <div class="view-toggle-bar">
+          <div class="view-toggle active">Conversation</div>
+          <div class="view-toggle">Classic</div>
+        </div>
+
+        <div class="content-area">
+          <div class="callout green-callout">
+            ↑ Dropdown selector is compact. Phase bar + content both update when you switch runs.
+            Scales better for 5+ runs than tabs would.
+          </div>
+
+          <div class="convo-item system">
+            <div class="convo-actor system-name">System</div>
+            <div class="convo-text">🔄 Hard reset — starting fresh as Investigation 2</div>
+          </div>
+          <div class="convo-item agent">
+            <div class="convo-actor agent-name">Classifier Agent</div>
+            <div class="convo-text">Classified as Product Bug in Policies area...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="diff-grid" style="margin-top:16px">
+    <div class="diff-card pro">
+      <div class="diff-label">Strengths</div>
+      <div class="diff-text">
+        Scales to any number of runs without crowding.
+        Clean, minimal UI — one selector instead of a tab bar.
+        Phase bar always matches selected run.
+      </div>
+    </div>
+    <div class="diff-card con">
+      <div class="diff-label">Trade-offs</div>
+      <div class="diff-text">
+        Extra click to switch runs (dropdown open → select).
+        Can't see all runs at a glance like with tabs.
+        Less visual when there are only 2-3 runs.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== COMPARISON ========== -->
+<div style="padding: 24px; background: #141414; border-radius: 12px; border: 1px solid #333; margin-top: 20px;">
+  <h2 style="font-size: 16px; margin-bottom: 16px;">Quick Comparison</h2>
+  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+    <thead>
+      <tr style="border-bottom: 1px solid #333;">
+        <th style="text-align:left; padding:8px; color:#888;"></th>
+        <th style="text-align:center; padding:8px; color:#34d399;">A: Tabs Above</th>
+        <th style="text-align:center; padding:8px; color:#60a5fa;">B: Tabs Replace Toggle</th>
+        <th style="text-align:center; padding:8px; color:#60a5fa;">C: Dropdown</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid #222;">
+        <td style="padding:8px; color:#888;">Phase bar per run</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Yes</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">Inline dots only</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Yes</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #222;">
+        <td style="padding:8px; color:#888;">Conversation scoped to run</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Yes</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Yes</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Yes</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #222;">
+        <td style="padding:8px; color:#888;">Scales to 5+ runs</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">Scroll</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">Scroll</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Native</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #222;">
+        <td style="padding:8px; color:#888;">Switching speed</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">1 click</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">1 click</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">2 clicks</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #222;">
+        <td style="padding:8px; color:#888;">Visual clarity</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">High</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">Medium</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">High</td>
+      </tr>
+      <tr>
+        <td style="padding:8px; color:#888;">Implementation effort</td>
+        <td style="text-align:center; padding:8px; color:#10b981;">Low (closest to current)</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">Medium</td>
+        <td style="text-align:center; padding:8px; color:#f59e0b;">Medium</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

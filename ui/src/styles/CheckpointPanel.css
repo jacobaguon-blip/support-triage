@@ -1,0 +1,99 @@
+.checkpoint-panel {
+  padding: 20px;
+}
+
+.checkpoint-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.checkpoint-header h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.waiting-indicator {
+  font-size: 0.85em;
+  color: var(--accent-yellow);
+  font-weight: 500;
+}
+
+.checkpoint-description {
+  margin-bottom: 16px;
+}
+
+.checkpoint-description p {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.checkpoint-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.checkpoint-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+.checkpoint-feedback {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.feedback-toggle {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  background-color: transparent;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.feedback-toggle:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.feedback-input {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9em;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.feedback-input:focus {
+  outline: none;
+  border-color: var(--c1-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.auto-proceed-notice {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background-color: rgba(245, 158, 11, 0.1);
+  border-left: 3px solid var(--accent-yellow);
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: var(--accent-yellow);
+  font-weight: 500;
+}

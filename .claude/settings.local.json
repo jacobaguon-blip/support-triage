@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3:*)",
+      "Bash(chmod:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(tree:*)",
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(npm run dev:*)",
+      "Bash(./triage-launcher.sh:*)",
+      "mcp__pylon__pylon_get_issue",
+      "mcp__pylon__pylon_get_issue_body"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "slack",
+    "pylon"
+  ]
+}

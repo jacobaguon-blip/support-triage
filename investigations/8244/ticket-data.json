@@ -1,0 +1,20 @@
+{
+  "ticket_id": 8244,
+  "pylon_id": "ea92d76a-b56f-405b-ae93-8de455be8947",
+  "title": "Prod VPN Access Request Flow with Time-Limited Okta Group",
+  "customer_name": "Lookout",
+  "account_id": "2daf7385-c11c-4093-ac0c-cef7ccfe9d5c",
+  "requester_id": "77b38aa5-0965-4f62-8a3a-d073b84e069e",
+  "pylon_link": "https://app.usepylon.com/issues?conversationID=ea92d76a-b56f-405b-ae93-8de455be8947",
+  "source": "slack",
+  "state": "waiting_on_you",
+  "created_at": "2026-02-04T18:37:53Z",
+  "body": "Hello, We are trying to setup a flow for our prod vpn access. We would like there to be a custom app that users request one time that then gives the ability to request prod vpn access for 12hrs when needed. It is similar to how we setup our epa access. The action to give prod vpn access would be to add the user to an okta group for a 12 hr period and then remove them. We are trying to accomplish this without displaying the okta app in the users request screen. We are happy to hop on a call to...",
+  "classification": "feature_request",
+  "product_area": "Access Requests",
+  "connector_name": "okta",
+  "priority": "P3",
+  "suggested_priority": "P3",
+  "tags": [],
+  "fetched_at": "2026-02-06T00:00:00Z"
+}

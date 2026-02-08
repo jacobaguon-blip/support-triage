@@ -1,0 +1,108 @@
+/* ========================================
+   SourcesList - Evidence/Citation Display
+   ======================================== */
+
+.sources-list {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  border-left: 2px solid var(--border-color);
+}
+
+.sources-list__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: default;
+  user-select: none;
+  margin-bottom: 6px;
+}
+
+.sources-list__header:has(~ .sources-list__toggle) {
+  cursor: pointer;
+}
+
+.sources-list__icon {
+  font-size: 12px;
+}
+
+.sources-list__label {
+  font-weight: 600;
+}
+
+.sources-list__toggle {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-transform: none;
+}
+
+.sources-list__toggle:hover {
+  color: var(--text-secondary);
+}
+
+.sources-list__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Source Chip */
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.source-chip:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.source-chip__icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.source-chip__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.source-chip__link {
+  text-decoration: none;
+}
+
+.source-chip__link .source-chip {
+  cursor: pointer;
+}
+
+.source-chip__link .source-chip:hover {
+  border-color: rgba(74, 158, 255, 0.5);
+  background: rgba(74, 158, 255, 0.1);
+}
+
+/* Animation for expanding sources */
+.sources-list__items {
+  animation: sourcesFadeIn 0.2s ease;
+}
+
+@keyframes sourcesFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

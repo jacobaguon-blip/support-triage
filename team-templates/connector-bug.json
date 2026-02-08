@@ -1,0 +1,183 @@
+{
+  "team_name": "Connector Bug Investigation Team",
+  "classification": "connector_bug",
+  "description": "Specialized team for investigating connector-specific issues (sync failures, provisioning problems, external API errors)",
+  "agents": [
+    {
+      "role": "connector-code-specialist",
+      "description": "Find relevant connector code, trace errors to specific files/lines, summarize what the code does in affected areas",
+      "data_sources": [
+        "~/C1/ConductorOne/baton-{connector-name}/"
+      ],
+      "search_strategy": [
+        "Use connector name from ticket to identify repository (e.g., 'Okta' → baton-okta)",
+        "Grep for error messages and stack traces",
+        "Trace code paths from error location",
+        "Review connector configuration and schema definitions",
+        "Check API client implementations"
+      ],
+      "output_requirements": [
+        "File paths with line ranges",
+        "Code summaries for affected areas",
+        "Error trace analysis (Level 2)",
+        "Prompt for Level 3 analysis"
+      ],
+      "phase": 1
+    },
+    {
+      "role": "issue-historian",
+      "description": "Search Linear and Pylon for similar past issues, find related tickets and engineering work",
+      "data_sources": [
+        "Linear MCP",
+        "Pylon MCP"
+      ],
+      "search_strategy": [
+        "Search Linear with connector name + error keywords",
+        "Search Pylon for similar customer reports",
+        "Filter by connector label and bug type",
+        "Identify patterns across similar issues",
+        "Check status of related engineering work"
+      ],
+      "output_requirements": [
+        "Linear issue links with status and relevance",
+        "Pylon ticket references",
+        "Pattern analysis across similar issues",
+        "Timeline of related work"
+      ],
+      "phase": 1
+    },
+    {
+      "role": "slack-context-researcher",
+      "description": "Search Slack broadly for discussions about this customer, connector, or error pattern",
+      "data_sources": [
+        "Slack MCP (all channels)"
+      ],
+      "search_strategy": [
+        "Search by customer name",
+        "Search by connector name",
+        "Search by error message text",
+        "Search for escalation discussions",
+        "Focus on recent discussions (last 3-6 months)",
+        "Prioritize channels with engineering participation"
+      ],
+      "output_requirements": [
+        "Channel names and dates",
+        "Thread summaries with context",
+        "Links to relevant threads",
+        "Pattern identification across discussions",
+        "Note which channels had most relevant content"
+      ],
+      "phase": 1
+    }
+  ],
+  "workflow": {
+    "phase_1": {
+      "name": "Parallel Context Gathering",
+      "execution": "parallel",
+      "agents": [
+        "connector-code-specialist",
+        "issue-historian",
+        "slack-context-researcher"
+      ],
+      "checkpoint_after": "checkpoint_2_post_context_gathering",
+      "output": "Individual findings from each specialist agent"
+    },
+    "phase_2": {
+      "name": "Synthesis and Document Generation",
+      "execution": "sequential",
+      "lead_agent": true,
+      "depends_on": ["phase_1"],
+      "tasks": [
+        "Collect findings from all specialist agents",
+        "Identify patterns and connections across findings",
+        "Generate complete investigation document (summary.md)",
+        "Draft Linear issue (linear-draft.md)",
+        "Draft customer response (customer-response.md)",
+        "Update SQLite with findings metadata"
+      ],
+      "checkpoint_after": "checkpoint_3_investigation_validation",
+      "output": "Complete investigation package"
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "checkpoint_1_post_classification",
+      "trigger": "after_classification",
+      "required_data": [
+        "ticket_info",
+        "classification_result",
+        "classification_reasoning"
+      ]
+    },
+    {
+      "id": "checkpoint_2_post_context_gathering",
+      "trigger": "after_phase_1",
+      "required_data": [
+        "code_findings",
+        "history_findings",
+        "slack_findings",
+        "identified_gaps"
+      ]
+    },
+    {
+      "id": "checkpoint_3_investigation_validation",
+      "trigger": "after_phase_2",
+      "required_data": [
+        "summary_document",
+        "linear_draft",
+        "customer_response_draft"
+      ]
+    },
+    {
+      "id": "checkpoint_4_solution_check",
+      "trigger": "after_revisions",
+      "required_data": [
+        "revised_documents",
+        "final_customer_response"
+      ]
+    }
+  ],
+  "expected_outputs": {
+    "files": [
+      "summary.md",
+      "linear-draft.md",
+      "customer-response.md",
+      "agent-transcript.txt",
+      "metrics.json"
+    ],
+    "database_updates": [
+      "classification",
+      "connector_name",
+      "status",
+      "current_checkpoint",
+      "output_path"
+    ]
+  },
+  "connector_identification": {
+    "method": "dynamic_lookup",
+    "pattern": "baton-{connector-name}",
+    "examples": {
+      "Okta": "baton-okta",
+      "Azure AD": "baton-azure",
+      "Azure": "baton-azure",
+      "Google Workspace": "baton-google-workspace",
+      "Salesforce": "baton-salesforce",
+      "ServiceNow": "baton-servicenow"
+    },
+    "fallback": "Search ~/C1/ConductorOne/ for closest match"
+  },
+  "safety_constraints": {
+    "read_only_paths": [
+      "~/C1/"
+    ],
+    "writable_paths": [
+      "~/support-triage/investigations/{ticket-id}/"
+    ],
+    "forbidden_actions": [
+      "modify_c1_code",
+      "create_linear_issue",
+      "send_pylon_message",
+      "push_to_notion"
+    ]
+  }
+}

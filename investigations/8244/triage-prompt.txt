@@ -1,0 +1,67 @@
+# Support Ticket Triage — Investigation #8244
+
+## Mode
+- Agent Mode: team
+- Execution Mode: new
+
+## Instructions
+You are conducting a support ticket investigation using the Support Ticket Triage System.
+
+Read the following files for complete context:
+1. /Users/jacobaguon/support-triage/CLAUDE.md — Full agent instructions and protocols
+2. /Users/jacobaguon/support-triage/settings.json — System configuration
+
+## Your Task
+
+**START NEW INVESTIGATION**
+
+1. Fetch Pylon ticket #8244 using Pylon MCP
+2. Read the request_type and product_area fields
+3. Apply the classification routing table from CLAUDE.md
+4. Present classification at Checkpoint 1 and wait for human approval
+5. Spawn the appropriate agent team (or run single-agent mode if --single)
+6. Execute Phase 1: Parallel context gathering
+   - connector-code-specialist OR product-code-reviewer (based on classification)
+   - issue-historian
+   - slack-context-researcher
+7. Present findings at Checkpoint 2 and wait for human approval
+8. Execute Phase 2: Synthesis
+   - Generate summary.md
+   - Generate linear-draft.md (for bugs)
+   - Generate customer-response.md
+9. Present complete investigation at Checkpoint 3 and wait for validation
+10. Apply any revisions requested by human
+11. Present final outputs at Checkpoint 4 for solution check
+
+## Output Location
+All files should be written to: /Users/jacobaguon/support-triage/investigations/8244/
+
+Required outputs:
+- summary.md
+- customer-response.md
+- linear-draft.md (for bugs only)
+- agent-transcript.txt
+- metrics.json
+
+## Remember
+- Read CLAUDE.md for full protocols and safety guardrails
+- All checkpoints are mandatory unless auto-proceed is enabled
+- Always cite sources (Linear #, Slack links, file:line)
+- ~/C1/ is READ-ONLY
+- Never create Linear issues or send Pylon messages
+- Default to Level 2 code analysis, prompt for Level 3
+
+## Database Update
+After completing each checkpoint, update the database:
+```bash
+sqlite3 /Users/jacobaguon/support-triage/triage.db "UPDATE investigations SET current_checkpoint='checkpoint_name', updated_at='timestamp' WHERE id=8244;"
+```
+
+When investigation is complete:
+```bash
+sqlite3 /Users/jacobaguon/support-triage/triage.db "UPDATE investigations SET status='complete', resolved_at='timestamp' WHERE id=8244;"
+```
+
+---
+
+Begin investigation now.

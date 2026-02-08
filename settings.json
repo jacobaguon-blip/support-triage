@@ -1,0 +1,75 @@
+{
+  "version": "1.0.0",
+  "checkpoints": {
+    "checkpoint_1_post_classification": {
+      "name": "Post-Classification Review",
+      "enabled": true,
+      "mandatory": true,
+      "description": "Review ticket classification before starting investigation"
+    },
+    "checkpoint_2_post_context_gathering": {
+      "name": "Post-Context-Gathering Review",
+      "enabled": true,
+      "mandatory": true,
+      "description": "Review initial findings from specialist agents"
+    },
+    "checkpoint_3_investigation_validation": {
+      "name": "Investigation Validation",
+      "enabled": true,
+      "mandatory": true,
+      "description": "Validate complete investigation findings"
+    },
+    "checkpoint_4_solution_check": {
+      "name": "Re-Validation / Solution Check",
+      "enabled": true,
+      "mandatory": true,
+      "description": "Confirm final solution and customer response"
+    }
+  },
+  "concurrency": {
+    "max_active_investigations": 3,
+    "queue_behavior": "auto_start"
+  },
+  "agent_mode": {
+    "default": "team",
+    "fallback_to_single": true,
+    "single_agent_timeout_seconds": 900
+  },
+  "auto_proceed": {
+    "default_enabled": false,
+    "timeout_seconds": 600,
+    "warning_threshold_seconds": 60
+  },
+  "code_review": {
+    "default_depth": 2,
+    "always_prompt_for_level_3": true,
+    "auto_level_3": false
+  },
+  "timeouts": {
+    "investigation_max_duration_seconds": 900,
+    "agent_idle_timeout_seconds": 300
+  },
+  "slack_search": {
+    "broad_search_enabled": true,
+    "track_channel_frequency": true,
+    "priority_channels": []
+  },
+  "priority_handling": {
+    "read_from_pylon": true,
+    "suggest_changes": true,
+    "auto_assign": false,
+    "use_notion_severity_definitions": false
+  },
+  "customer_response_style": {
+    "tone": "friendly-professional",
+    "always_include": [],
+    "never_do": [],
+    "learn_from_edits": true
+  },
+  "safety": {
+    "c1_readonly": true,
+    "require_human_approval_for_linear": true,
+    "require_human_approval_for_pylon": true,
+    "require_human_approval_for_notion": true
+  }
+}

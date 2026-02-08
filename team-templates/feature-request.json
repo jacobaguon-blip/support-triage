@@ -1,0 +1,183 @@
+{
+  "team_name": "Feature Request Investigation Team",
+  "classification": "feature_request",
+  "description": "Specialized team for investigating feature requests (new capabilities, enhancement requests)",
+  "agents": [
+    {
+      "role": "roadmap-researcher",
+      "description": "Check Linear roadmap, initiatives, existing feature work",
+      "data_sources": [
+        "Linear MCP (roadmap projects, feature labels)"
+      ],
+      "search_strategy": [
+        "Search Linear for similar feature requests",
+        "Check roadmap projects and initiatives",
+        "Look for feature labels matching request",
+        "Search for 'enhancement' and 'feature' labels",
+        "Review project status and timelines",
+        "Identify if feature is planned, in progress, or not scheduled"
+      ],
+      "output_requirements": [
+        "Existing or planned work with status",
+        "Project timelines if available",
+        "Roadmap positioning",
+        "Engineering estimates if documented"
+      ],
+      "phase": 1
+    },
+    {
+      "role": "similar-requests-researcher",
+      "description": "Find duplicate or similar requests in Pylon and Linear",
+      "data_sources": [
+        "Pylon MCP",
+        "Linear MCP"
+      ],
+      "search_strategy": [
+        "Search Pylon for similar feature requests from other customers",
+        "Search Linear for duplicate requests",
+        "Group requests by feature keywords",
+        "Count frequency of similar requests",
+        "Identify which customers have requested this",
+        "Note any workarounds mentioned"
+      ],
+      "output_requirements": [
+        "List of similar requests with customer names",
+        "Frequency analysis (how many customers)",
+        "Links to related Pylon tickets",
+        "Links to related Linear issues",
+        "Vote counts if available"
+      ],
+      "phase": 1
+    },
+    {
+      "role": "slack-context-researcher",
+      "description": "Find internal discussions about this capability",
+      "data_sources": [
+        "Slack MCP"
+      ],
+      "search_strategy": [
+        "Search for feature keywords",
+        "Search in product and engineering channels",
+        "Look for customer feedback discussions",
+        "Search for feasibility discussions",
+        "Search for workaround suggestions",
+        "Focus on recent discussions (last 3-6 months)"
+      ],
+      "output_requirements": [
+        "Internal sentiment about feature",
+        "Feasibility discussions",
+        "Workaround suggestions",
+        "Product team perspectives",
+        "Engineering complexity estimates if mentioned"
+      ],
+      "phase": 1
+    }
+  ],
+  "workflow": {
+    "phase_1": {
+      "name": "Parallel Context Gathering",
+      "execution": "parallel",
+      "agents": [
+        "roadmap-researcher",
+        "similar-requests-researcher",
+        "slack-context-researcher"
+      ],
+      "checkpoint_after": "checkpoint_2_post_context_gathering",
+      "output": "Individual findings from each specialist agent"
+    },
+    "phase_2": {
+      "name": "Synthesis and Document Generation",
+      "execution": "sequential",
+      "lead_agent": true,
+      "depends_on": ["phase_1"],
+      "tasks": [
+        "Collect findings from all specialist agents",
+        "Identify patterns and connections across findings",
+        "Generate complete investigation document (summary.md)",
+        "Draft customer response (customer-response.md)",
+        "Update SQLite with findings metadata"
+      ],
+      "checkpoint_after": "checkpoint_3_investigation_validation",
+      "output": "Complete investigation package",
+      "note": "No Linear draft for feature requests by default — only if escalation is needed"
+    }
+  },
+  "checkpoints": [
+    {
+      "id": "checkpoint_1_post_classification",
+      "trigger": "after_classification",
+      "required_data": [
+        "ticket_info",
+        "classification_result",
+        "classification_reasoning"
+      ]
+    },
+    {
+      "id": "checkpoint_2_post_context_gathering",
+      "trigger": "after_phase_1",
+      "required_data": [
+        "roadmap_findings",
+        "similar_requests_findings",
+        "slack_findings",
+        "identified_gaps"
+      ]
+    },
+    {
+      "id": "checkpoint_3_investigation_validation",
+      "trigger": "after_phase_2",
+      "required_data": [
+        "summary_document",
+        "customer_response_draft"
+      ]
+    },
+    {
+      "id": "checkpoint_4_solution_check",
+      "trigger": "after_revisions",
+      "required_data": [
+        "revised_documents",
+        "final_customer_response"
+      ]
+    }
+  ],
+  "expected_outputs": {
+    "files": [
+      "summary.md",
+      "customer-response.md",
+      "agent-transcript.txt",
+      "metrics.json"
+    ],
+    "optional_files": [
+      "linear-draft.md (only if escalation needed)"
+    ],
+    "database_updates": [
+      "classification",
+      "product_area",
+      "status",
+      "current_checkpoint",
+      "output_path"
+    ]
+  },
+  "response_patterns": {
+    "feature_exists": "Inform customer the feature exists and provide documentation/guidance",
+    "feature_planned": "Inform customer it's on the roadmap with timeline if available",
+    "feature_not_planned": "Acknowledge request, note similar requests if any, explain how to submit for roadmap consideration",
+    "workaround_available": "Provide workaround instructions while noting feature isn't available yet",
+    "needs_escalation": "Significant customer demand or high business impact — draft Linear issue for product team review"
+  },
+  "safety_constraints": {
+    "read_only_paths": [
+      "~/C1/"
+    ],
+    "writable_paths": [
+      "~/support-triage/investigations/{ticket-id}/"
+    ],
+    "forbidden_actions": [
+      "modify_c1_code",
+      "create_linear_issue",
+      "send_pylon_message",
+      "push_to_notion",
+      "promise_feature_delivery",
+      "commit_to_timelines"
+    ]
+  }
+}

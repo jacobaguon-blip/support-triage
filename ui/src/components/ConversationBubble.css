@@ -1,0 +1,341 @@
+/* ============ CONVERSATION BUBBLE WRAPPER ============ */
+.conversation-bubble-wrapper {
+  animation: bubbleSlideIn 0.3s ease;
+}
+
+.conversation-bubble-wrapper--faded {
+  opacity: 0.4;
+  filter: grayscale(0.3);
+}
+
+@keyframes bubbleSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ BASE BUBBLE ============ */
+.bubble {
+  display: flex;
+  gap: 12px;
+  max-width: 85%;
+  padding: 0;
+}
+
+.bubble__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bubble__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.bubble__name {
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.bubble__time {
+  color: var(--text-muted, #666);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.bubble__badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bubble__badge--agent { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+.bubble__badge--phase { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+.bubble__badge--file { background: rgba(107, 114, 128, 0.15); color: var(--text-muted); font-family: monospace; }
+.bubble__badge--sources { background: rgba(74, 158, 255, 0.15); color: var(--accent-blue); font-size: 9px; }
+.bubble__badge--action { font-weight: 600; }
+.bubble__badge--green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+.bubble__badge--yellow { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+.bubble__badge--red { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+
+.bubble__content {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.bubble__preview {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-secondary, #999);
+  font-style: italic;
+}
+
+.bubble__expand-toggle {
+  color: var(--text-muted, #666);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+/* ============ AVATAR ============ */
+.bubble-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.bubble-avatar--customer { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+.bubble-avatar--agent { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+.bubble-avatar--tse { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.bubble-avatar--system { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+
+/* ============ CUSTOMER BUBBLE ============ */
+.bubble--customer {
+  align-self: flex-start;
+}
+
+.bubble__content--customer {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 4px 12px 12px 12px;
+}
+
+/* ============ AGENT BUBBLE ============ */
+.bubble--agent {
+  align-self: flex-start;
+}
+
+.bubble__content--agent {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 4px 12px 12px 12px;
+}
+
+/* ============ SYSTEM PHASE BUBBLE ============ */
+.bubble--system-phase {
+  align-self: center;
+  max-width: 90%;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.bubble--system-phase:hover {
+  opacity: 1;
+}
+
+.bubble__system-icon {
+  font-size: 18px;
+  margin-top: 2px;
+}
+
+.bubble__content--system {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+}
+
+/* ============ SYSTEM RESULT BUBBLE ============ */
+.bubble--system-result {
+  align-self: stretch;
+  max-width: 100%;
+  flex-direction: column;
+}
+
+.bubble__result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.bubble__result-icon {
+  font-size: 16px;
+}
+
+.bubble__result-label {
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.bubble__content--result {
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* ============ DECISION BUBBLE ============ */
+.bubble--decision {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.bubble__body--decision {
+  text-align: right;
+}
+
+.bubble--decision .bubble__header {
+  justify-content: flex-end;
+}
+
+.bubble--decision .bubble__time {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.bubble__content--decision {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 12px 4px 12px 12px;
+  text-align: left;
+}
+
+.bubble__feedback {
+  margin: 0;
+  font-style: italic;
+  color: var(--text-secondary, #999);
+}
+
+/* ============ RESET MARKER ============ */
+.bubble--reset-marker {
+  align-self: stretch;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.bubble__reset-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(245, 158, 11, 0.3);
+}
+
+.bubble__reset-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--accent-yellow);
+  white-space: nowrap;
+  padding: 2px 10px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 12px;
+}
+
+.bubble__reset-icon {
+  font-size: 14px;
+}
+
+/* ============ MARKDOWN RENDERED ============ */
+.markdown-rendered {
+  word-break: break-word;
+}
+
+.markdown-rendered h2,
+.markdown-rendered h3,
+.markdown-rendered h4 {
+  margin: 12px 0 6px;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.markdown-rendered h2 { font-size: 15px; }
+.markdown-rendered h3 { font-size: 14px; }
+.markdown-rendered h4 { font-size: 13px; }
+
+.markdown-rendered p {
+  margin: 0 0 8px;
+}
+
+.markdown-rendered code {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-rendered ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.markdown-rendered li {
+  margin-bottom: 2px;
+}
+
+.markdown-rendered strong {
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* ============ INLINE SOURCE CITATIONS ============ */
+.inline-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  margin: 0 2px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  vertical-align: baseline;
+  cursor: default;
+}
+
+.inline-source--linear {
+  background: rgba(94, 106, 210, 0.12);
+  border-color: rgba(94, 106, 210, 0.25);
+  color: #5E6AD2;
+}
+
+.inline-source--slack {
+  background: rgba(224, 30, 90, 0.1);
+  border-color: rgba(224, 30, 90, 0.2);
+  color: #E01E5A;
+}
+
+.inline-source--pylon {
+  background: rgba(74, 158, 255, 0.1);
+  border-color: rgba(74, 158, 255, 0.2);
+  color: var(--accent-blue);
+}
+
+.inline-source--file {
+  background: rgba(240, 180, 41, 0.1);
+  border-color: rgba(240, 180, 41, 0.2);
+  color: #B45309;
+}
+
+.inline-source--analysis {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #D97706;
+}

@@ -1,0 +1,245 @@
+/* ============ RUN SELECTOR (Option C — Dropdown) ============ */
+.run-selector {
+  margin-bottom: 4px;
+}
+
+.run-selector__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+/* Label when only one run exists */
+.run-selector__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* Dropdown wrapper */
+.run-selector__dropdown-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.run-selector__dropdown {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  appearance: auto;
+  transition: border-color 0.15s;
+}
+
+.run-selector__dropdown:hover {
+  border-color: var(--text-muted, #666);
+}
+
+.run-selector__dropdown:focus {
+  outline: none;
+  border-color: var(--c1-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.run-selector__dropdown option {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Status dot next to label/dropdown */
+.run-selector__status {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.run-selector__status--running {
+  background: var(--accent-blue, #3b82f6);
+  animation: runSelectorPulse 1.5s infinite;
+}
+
+.run-selector__status--waiting {
+  background: var(--accent-yellow, #f59e0b);
+}
+
+.run-selector__status--complete {
+  background: var(--accent-green, #10b981);
+}
+
+.run-selector__status--superseded {
+  background: var(--text-muted, #666);
+}
+
+@keyframes runSelectorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ============ HARD RESET BUTTON (compact variant) ============ */
+.hard-reset-btn--compact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  color: #f87171;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.hard-reset-btn--compact:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.hard-reset-btn--compact:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ============ CONFIRMATION DIALOG ============ */
+.hard-reset-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: dialogFadeIn 0.15s ease;
+}
+
+@keyframes dialogFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.hard-reset-dialog {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--shadow-md);
+  animation: dialogSlideIn 0.2s ease;
+}
+
+@keyframes dialogSlideIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.hard-reset-dialog__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f87171;
+}
+
+.hard-reset-dialog__body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary, #999);
+  margin-bottom: 20px;
+}
+
+.hard-reset-dialog__body strong {
+  color: var(--text-primary, #e0e0e0);
+}
+
+.hard-reset-dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.hard-reset-dialog__cancel {
+  padding: 8px 16px;
+  font-size: 13px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.hard-reset-dialog__cancel:hover {
+  background: var(--bg-tertiary);
+}
+
+.hard-reset-dialog__confirm {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #f87171;
+  cursor: pointer;
+}
+
+.hard-reset-dialog__confirm:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.hard-reset-dialog__confirm:disabled,
+.hard-reset-dialog__cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hard-reset-dialog__error {
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #f87171;
+  line-height: 1.5;
+}
+
+/* ============ DEBOUNCE INDICATOR ============ */
+.debounce-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #fbbf24;
+  animation: fadeInUp 0.3s ease;
+}
+
+.debounce-indicator__icon {
+  font-size: 14px;
+  animation: runSelectorPulse 2s infinite;
+}

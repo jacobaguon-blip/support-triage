@@ -1,0 +1,20 @@
+{
+  "ticket_id": 8254,
+  "pylon_id": "73c6815a-869a-4741-9cf0-4af4ed4f4bf1",
+  "title": "Blank 'Review policy' after UI update",
+  "customer_name": "Trading212",
+  "account_id": "d2af0cf2-e96c-47cc-b348-aefe1d5eea3d",
+  "requester_id": "efc3492f-a5ea-4c02-93f8-24a0caf7b2dd",
+  "pylon_link": "https://app.usepylon.com/issues?conversationID=73c6815a-869a-4741-9cf0-4af4ed4f4bf1",
+  "source": "slack",
+  "state": "waiting_on_you",
+  "created_at": "2026-02-04T21:56:39Z",
+  "body": "Since the UI update, the \"Review policy\" is blank, weird thing is though, I can't reproduce it. Might be worth checking.",
+  "classification": "product_bug",
+  "product_area": "Policies",
+  "connector_name": null,
+  "priority": "P3",
+  "suggested_priority": "P3",
+  "tags": [],
+  "fetched_at": "2026-02-06T00:00:00Z"
+}

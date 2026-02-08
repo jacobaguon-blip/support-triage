@@ -1,0 +1,60 @@
+/* ============ BACKTRACK BAR ============ */
+.backtrack-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+  animation: backtrackSlideDown 0.3s ease;
+}
+
+@keyframes backtrackSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.backtrack-bar__content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #999);
+}
+
+.backtrack-bar__icon {
+  font-size: 14px;
+}
+
+.backtrack-bar__label strong {
+  color: #fbbf24;
+}
+
+.backtrack-bar__hint {
+  color: var(--text-muted, #666);
+  font-style: italic;
+}
+
+.backtrack-bar__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.backtrack-bar__btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.backtrack-bar__btn--clear {
+  background: transparent;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.backtrack-bar__btn--clear:hover {
+  background: rgba(245, 158, 11, 0.15);
+}
