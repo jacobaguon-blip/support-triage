@@ -220,3 +220,46 @@
   color: var(--accent-yellow);
   border-color: rgba(245, 158, 11, 0.2);
 }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .version-timeline {
+    padding: 12px;
+  }
+  .version-node__content {
+    padding-bottom: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .version-timeline {
+    padding: 8px;
+  }
+  .version-timeline__title {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+  .version-node {
+    gap: 8px;
+  }
+  .version-node__content {
+    padding-bottom: 8px;
+  }
+  .version-node__number {
+    font-size: 11px;
+  }
+  .version-node__label {
+    font-size: 11px;
+  }
+  .version-node__badge {
+    font-size: 8px;
+    padding: 1px 4px;
+  }
+  .version-restore-dialog {
+    padding: 6px;
+  }
+  .version-restore-dialog__btn {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}

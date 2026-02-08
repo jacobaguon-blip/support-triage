@@ -135,3 +135,31 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .checkpoint-prompt {
+    padding: 12px;
+    border-radius: 8px;
+  }
+  .checkpoint-prompt__title {
+    font-size: 13px;
+  }
+  .checkpoint-prompt__question {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .checkpoint-prompt__btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .checkpoint-prompt__btn--sm {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .checkpoint-prompt__textarea {
+    padding: 8px;
+    font-size: 12px;
+    min-height: 50px;
+  }
+}

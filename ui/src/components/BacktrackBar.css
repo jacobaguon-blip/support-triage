@@ -69,3 +69,23 @@
   border: 1px solid rgba(245, 158, 11, 0.3);
   color: var(--accent-yellow);
 }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .backtrack-bar {
+    padding: 6px 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .backtrack-bar__content {
+    font-size: 11px;
+    gap: 6px;
+  }
+  .backtrack-bar__hint {
+    display: none;
+  }
+  .backtrack-bar__btn {
+    font-size: 10px;
+    padding: 2px 8px;
+  }
+}

@@ -339,3 +339,48 @@
   border-color: rgba(245, 158, 11, 0.2);
   color: #D97706;
 }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .bubble {
+    max-width: 92%;
+  }
+  .bubble-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+  .bubble__content {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .bubble__header {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 768px) {
+  .bubble {
+    max-width: 96%;
+    gap: 8px;
+  }
+  .bubble-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 9px;
+    margin-top: 2px;
+  }
+  .bubble__content {
+    padding: 6px 10px;
+    border-radius: 8px;
+  }
+  .bubble__badge {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+  .bubble__content--result {
+    max-height: 250px;
+  }
+  .markdown-rendered h2 { font-size: 14px; }
+  .markdown-rendered h3 { font-size: 13px; }
+}

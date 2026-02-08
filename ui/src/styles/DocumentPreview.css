@@ -165,3 +165,46 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .document-content {
+    padding: 16px;
+  }
+  .markdown-preview {
+    max-width: 100%;
+  }
+  .markdown-preview h1 { font-size: 1.5em; }
+  .markdown-preview h2 { font-size: 1.25em; }
+}
+
+@media (max-width: 768px) {
+  .document-actions {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .document-content {
+    padding: 12px;
+  }
+  .markdown-preview h1 {
+    font-size: 1.3em;
+    margin-top: 16px;
+  }
+  .markdown-preview h2 {
+    font-size: 1.15em;
+    margin-top: 14px;
+  }
+  .markdown-preview pre {
+    padding: 10px;
+    font-size: 0.85em;
+  }
+  .markdown-preview th,
+  .markdown-preview td {
+    padding: 6px 8px;
+    font-size: 0.9em;
+  }
+  .doc-type-badge {
+    font-size: 0.8em;
+    padding: 3px 8px;
+  }
+}

@@ -259,3 +259,29 @@
   font-size: 12px;
   border-radius: var(--radius-sm);
 }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .run-selector__dropdown {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+  .hard-reset-btn--compact {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+  .hard-reset-dialog {
+    padding: 16px;
+    max-width: 320px;
+  }
+  .hard-reset-dialog__title {
+    font-size: 14px;
+  }
+  .hard-reset-dialog__body {
+    font-size: 12px;
+  }
+  .debounce-indicator {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+}

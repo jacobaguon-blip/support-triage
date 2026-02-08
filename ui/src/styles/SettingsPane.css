@@ -168,3 +168,51 @@
   background-color: var(--bg-primary);
   border-top: 1px solid var(--border-color);
 }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .settings-header {
+    padding: 14px 16px;
+  }
+  .settings-header h2 {
+    font-size: 1.25em;
+  }
+  .settings-content {
+    padding: 16px;
+  }
+  .settings-section {
+    padding: 14px;
+  }
+  .style-lists {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-header {
+    padding: 10px 12px;
+  }
+  .settings-header h2 {
+    font-size: 1.1em;
+  }
+  .settings-content {
+    padding: 12px;
+  }
+  .settings-section {
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+  .settings-footer {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .radio-label {
+    padding: 8px;
+    gap: 8px;
+  }
+  .checkbox-label {
+    gap: 8px;
+    font-size: 0.9em;
+  }
+}
