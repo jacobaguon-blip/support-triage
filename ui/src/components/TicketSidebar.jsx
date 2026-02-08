@@ -1,22 +1,13 @@
 import { useState } from 'react'
 import '../styles/TicketSidebar.css'
 
-const STATUS_ICONS = {
-  queued: '📋',
-  running: '🔄',
-  waiting: '⏸',
-  paused: '⏸',
-  complete: '✅',
-  error: '❌'
-}
-
-const STATUS_LABELS = {
-  queued: 'Queued',
-  running: 'Running',
-  waiting: 'Waiting',
-  paused: 'Paused',
-  complete: 'Complete',
-  error: 'Error'
+const STATUS_DOT_CLASS = {
+  queued: 'dot--queued',
+  running: 'dot--running',
+  waiting: 'dot--waiting',
+  paused: 'dot--waiting',
+  complete: 'dot--complete',
+  error: 'dot--error'
 }
 
 function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNewTicket }) {
@@ -36,48 +27,34 @@ function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNew
     ['running', 'waiting'].includes(inv.status)
   ).length
 
-  const queuedCount = investigations.filter(inv => inv.status === 'queued').length
-
   return (
     <aside className="ticket-sidebar">
       <div className="sidebar-header">
-        <h2>Investigations</h2>
-        <div className="concurrency-indicator">
-          <span className="status-running">●</span> {activeCount} active
-          {queuedCount > 0 && (
-            <>
-              <span className="status-queued"> · ●</span> {queuedCount} queued
-            </>
-          )}
-        </div>
+        <span className="sidebar-header__title">Investigations</span>
+        {activeCount > 0 && (
+          <span className="sidebar-header__count">{activeCount} active</span>
+        )}
       </div>
 
       <div className="sidebar-filters">
-        <button
-          className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          All ({investigations.length})
-        </button>
-        <button
-          className={`filter-btn ${filter === 'active' ? 'active' : ''}`}
-          onClick={() => setFilter('active')}
-        >
-          Active
-        </button>
-        <button
-          className={`filter-btn ${filter === 'complete' ? 'active' : ''}`}
-          onClick={() => setFilter('complete')}
-        >
-          Done
-        </button>
+        {[
+          { key: 'all', label: `All (${investigations.length})` },
+          { key: 'active', label: 'Active' },
+          { key: 'complete', label: 'Done' }
+        ].map(f => (
+          <button
+            key={f.key}
+            className={`filter-btn ${filter === f.key ? 'active' : ''}`}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       <div className="sidebar-list">
         {filteredInvestigations.length === 0 ? (
-          <div className="empty-list">
-            <p>No investigations {filter !== 'all' && `(${filter})`}</p>
-          </div>
+          <div className="empty-list">No investigations</div>
         ) : (
           filteredInvestigations.map(inv => (
             <TicketItem
@@ -91,7 +68,7 @@ function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNew
       </div>
 
       <div className="sidebar-footer">
-        <button className="btn btn-primary new-ticket-btn" onClick={onNewTicket}>
+        <button className="new-ticket-btn" onClick={onNewTicket}>
           + New Investigation
         </button>
       </div>
@@ -100,14 +77,7 @@ function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNew
 }
 
 function TicketItem({ investigation, isSelected, onClick }) {
-  const statusIcon = STATUS_ICONS[investigation.status] || '●'
-
-  let tags = []
-  try {
-    tags = investigation.tags ? JSON.parse(investigation.tags) : []
-  } catch (e) {
-    tags = []
-  }
+  const dotClass = STATUS_DOT_CLASS[investigation.status] || ''
 
   const showCountdown = investigation.auto_proceed &&
     ['waiting', 'paused'].includes(investigation.status)
@@ -117,39 +87,38 @@ function TicketItem({ investigation, isSelected, onClick }) {
       className={`ticket-item ${isSelected ? 'selected' : ''} status-${investigation.status}`}
       onClick={onClick}
     >
-      <div className="ticket-item-header">
-        <span className="ticket-status">{statusIcon}</span>
+      {/* Row 1: dot + ID + customer + priority */}
+      <div className="ticket-row">
+        <span className={`ticket-dot ${dotClass}`} />
         <span className="ticket-id">#{investigation.id}</span>
+        <span className="ticket-customer">{investigation.customer_name}</span>
         <span className={`ticket-priority priority-${investigation.priority?.toLowerCase()}`}>
           {investigation.priority}
         </span>
       </div>
 
-      <div className="ticket-item-body">
-        <div className="ticket-customer">{investigation.customer_name}</div>
-        <div className="ticket-classification">
+      {/* Row 2: classification + connector */}
+      <div className="ticket-meta">
+        <span className="ticket-classification">
           {investigation.classification?.replace(/_/g, ' ')}
-          {investigation.connector_name && (
-            <span className="connector-badge">{investigation.connector_name}</span>
-          )}
-        </div>
-
-        {investigation.current_checkpoint && (
-          <div className="ticket-checkpoint">
-            {investigation.current_checkpoint.replace(/checkpoint_\d+_/, '').replace(/_/g, ' ')}
-          </div>
+        </span>
+        {investigation.connector_name && (
+          <span className="connector-badge">{investigation.connector_name}</span>
         )}
       </div>
+
+      {/* Row 3: checkpoint (compact) */}
+      {investigation.current_checkpoint && (
+        <div className="ticket-checkpoint">
+          {investigation.current_checkpoint.replace(/checkpoint_\d+_/, '').replace(/_/g, ' ')}
+        </div>
+      )}
 
       {showCountdown && (
         <div className="ticket-countdown">
           <span className="countdown-icon">⏱</span>
-          <span>Auto-proceed in ~10m</span>
+          Auto-proceed ~10m
         </div>
-      )}
-
-      {investigation.agent_mode === 'single' && (
-        <div className="agent-mode-badge">Single Agent</div>
       )}
     </div>
   )
