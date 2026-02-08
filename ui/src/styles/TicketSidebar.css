@@ -1,6 +1,8 @@
 /* ============ TICKET SIDEBAR — COMPACT REDESIGN ============ */
 .ticket-sidebar {
-  width: 280px;
+  /* width is set via inline style from App (draggable) */
+  min-width: 180px;
+  max-width: 450px;
   background-color: var(--sidebar-bg);
   border-right: none;
   display: flex;
@@ -272,17 +274,11 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 1100px) {
-  .ticket-sidebar {
-    width: 240px;
-  }
-}
-
 @media (max-width: 768px) {
-  .ticket-sidebar {
-    width: 200px;
-  }
   .ticket-customer {
+    display: none;
+  }
+  .ticket-meta {
     display: none;
   }
 }

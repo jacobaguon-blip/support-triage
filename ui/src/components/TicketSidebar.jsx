@@ -10,7 +10,7 @@ const STATUS_DOT_CLASS = {
   error: 'dot--error'
 }
 
-function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNewTicket }) {
+function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNewTicket, style }) {
   const [filter, setFilter] = useState('all')
 
   const filteredInvestigations = investigations.filter(inv => {
@@ -28,7 +28,7 @@ function TicketSidebar({ investigations, selectedTicketId, onSelectTicket, onNew
   ).length
 
   return (
-    <aside className="ticket-sidebar">
+    <aside className="ticket-sidebar" style={style}>
       <div className="sidebar-header">
         <span className="sidebar-header__title">Investigations</span>
         {activeCount > 0 && (

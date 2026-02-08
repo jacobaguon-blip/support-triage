@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import TicketSidebar from './components/TicketSidebar'
 import InvestigationDetail from './components/InvestigationDetail'
 import SettingsPane from './components/SettingsPane'
 import { loadInvestigations, loadSettings, createInvestigation } from './services/sqlite'
 import './styles/App.css'
+
+const MIN_SIDEBAR = 180
+const MAX_SIDEBAR = 450
+const DEFAULT_SIDEBAR = 280
 
 function App() {
   const [investigations, setInvestigations] = useState([])
@@ -12,6 +16,42 @@ function App() {
   const [settings, setSettings] = useState(null)
   const [error, setError] = useState(null)
   const selectedTicketIdRef = useRef(null)
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR)
+  const isDragging = useRef(false)
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(DEFAULT_SIDEBAR)
+
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault()
+    isDragging.current = true
+    dragStartX.current = e.clientX
+    dragStartWidth.current = sidebarWidth
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging.current) return
+      const delta = e.clientX - dragStartX.current
+      const newWidth = Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, dragStartWidth.current + delta))
+      setSidebarWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      if (!isDragging.current) return
+      isDragging.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
 
   useEffect(() => {
     selectedTicketIdRef.current = selectedTicketId
@@ -93,7 +133,17 @@ function App() {
           selectedTicketId={selectedTicketId}
           onSelectTicket={setSelectedTicketId}
           onNewTicket={handleNewTicket}
+          style={{ width: sidebarWidth }}
         />
+
+        <div
+          className="resize-handle"
+          onMouseDown={handleMouseDown}
+          onDoubleClick={() => setSidebarWidth(DEFAULT_SIDEBAR)}
+          title="Drag to resize · Double-click to reset"
+        >
+          <div className="resize-handle__line" />
+        </div>
 
         <main className="main-content">
           {showSettings ? (

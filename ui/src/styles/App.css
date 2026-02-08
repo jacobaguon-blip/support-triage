@@ -35,11 +35,46 @@
   overflow: hidden;
 }
 
+/* ── Resize Handle ── */
+.resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.15s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background-color: rgba(99, 102, 241, 0.15);
+}
+
+.resize-handle__line {
+  width: 2px;
+  height: 32px;
+  border-radius: 1px;
+  background: var(--border-color);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.resize-handle:hover .resize-handle__line,
+.resize-handle:active .resize-handle__line {
+  opacity: 1;
+  background: var(--c1-primary);
+}
+
 .main-content {
   flex: 1;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .empty-state {
