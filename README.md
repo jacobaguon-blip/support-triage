@@ -5,11 +5,53 @@ An intelligent support ticket investigation system for ConductorOne's Technical 
 ## Quick Start
 
 ### Prerequisites
+- Node.js 18+
 - Claude Code CLI installed
 - MCP servers configured: Pylon, Linear, Slack
 - Access to ~/C1/ repositories (read-only)
 
-### Start an Investigation
+### Install Dependencies
+
+```bash
+cd ui && npm install
+```
+
+### Start the App (Manual)
+
+```bash
+cd ui
+node server.js &    # Express API on port 3001
+npm run dev          # Vite dev server on port 3000
+```
+
+Then open `http://localhost:3000`.
+
+### Start the App (pm2 — Recommended)
+
+pm2 keeps both services running in the background and auto-restarts them on reboot.
+
+```bash
+# One-time setup
+npm install -g pm2
+
+# Start both services
+cd support-triage
+pm2 start ecosystem.config.js
+
+# Useful commands
+pm2 status          # Check if services are running
+pm2 logs            # Tail logs from both services
+pm2 restart all     # Restart both
+pm2 stop all        # Stop both
+
+# Auto-start on reboot
+pm2 startup         # Generates a system command — run what it prints
+pm2 save            # Saves current process list for auto-start
+```
+
+The `ecosystem.config.js` in the project root configures both the API server (port 3001) and the Vite dev server (port 3000).
+
+### Start a CLI Investigation
 
 ```bash
 ./triage-launcher.sh 8314              # New investigation
@@ -22,19 +64,58 @@ An intelligent support ticket investigation system for ConductorOne's Technical 
 ```
 ~/support-triage/
 ├── CLAUDE.md                      # Agent instructions (READ THIS FIRST)
-├── triage.db                      # SQLite database
+├── BACKUP-AND-RECOVERY.md        # Disaster recovery procedures
+├── PROJECT-PLAN.md               # Sprint planning and roadmap
+├── ecosystem.config.js           # pm2 service configuration
+├── triage.db                      # SQLite database (runtime data)
 ├── settings.json                  # Configuration
 ├── orchestration.md               # Master orchestration guide
 ├── single-agent-mode.md          # Fallback execution guide
 ├── triage-launcher.sh            # CLI launcher script
+│
+├── ui/                           # React + Express application
+│   ├── server.js                 # Express API (port 3001)
+│   ├── package.json
+│   └── src/
+│       ├── App.jsx               # Main app with navigation
+│       ├── components/
+│       │   ├── AdminPortal.jsx   # Admin dashboard, feature board, project status
+│       │   ├── FeatureRequests.jsx # Feature request CRUD
+│       │   ├── InvestigationDetail.jsx
+│       │   ├── SettingsPane.jsx
+│       │   └── TicketSidebar.jsx
+│       ├── services/
+│       │   └── sqlite.js         # API client for backend
+│       └── styles/               # CSS (C1 design system)
+│
+├── teams/                        # Two-team structure
+│   ├── README.md                 # Team overview and org chart
+│   ├── ops-dev/CHARTER.md       # Alex Chen — Ops Dev Lead
+│   ├── triage/CHARTER.md        # Morgan Torres — Triage Lead
+│   ├── PROJECT-BOARD.md         # Shared kanban board
+│   ├── STANDUP.md               # Daily standup log
+│   └── COMMUNICATION.md         # Communication protocol
+│
+├── qa/                           # QA reference
+│   ├── STANDARDS.md
+│   ├── TEST-PLAN-TEMPLATE.md
+│   ├── UI-TESTING-GUIDE.md
+│   └── API-TESTING-GUIDE.md
+│
+├── features/                     # Feature request docs
+│   ├── BACKLOG.md
+│   └── TEMPLATE.md
+│
 ├── team-templates/               # Agent team configurations
 │   ├── connector-bug.json
 │   ├── product-bug.json
 │   └── feature-request.json
+│
 ├── templates/                    # Output document templates
 │   ├── summary-template.md
 │   ├── linear-draft-template.md
 │   └── customer-response-template.md
+│
 └── investigations/               # Investigation outputs
     └── {ticket-id}/
         ├── summary.md
@@ -296,15 +377,28 @@ Agents draft, humans execute:
 - [x] Launcher script
 - [x] Remaining team templates (product bug, feature request)
 
-### Phase 3 — Local UI (Next)
-- [ ] React app scaffold
-- [ ] Ticket list sidebar
-- [ ] Investigation detail view
-- [ ] Settings pane
-- [ ] WebSocket bridge
-- [ ] Notion push + Linear create buttons
+### Phase 3 — Local UI ✅
+- [x] React 18 + Vite 5 app scaffold
+- [x] Ticket sidebar with compact cards and draggable resize
+- [x] Investigation detail view with conversation stepper
+- [x] Settings pane (agent mode, polling, response style)
+- [x] C1 design system (indigo brand, Inter font, responsive)
+- [x] Express API backend with SQLite
+- [x] Feature request CRUD system
+- [x] Admin Portal (dashboard, feature board, project status)
+- [x] Two-team structure (Ops Dev + Triage)
+- [x] QA reference documentation
+- [x] pm2 service configuration
 
-### Phase 4 — Calibration
+### Phase 4 — In Progress
+- [ ] Three-column layout redesign (P2, in progress)
+- [ ] Investigation lifecycle: done state and toggle (P1)
+- [ ] Classification accuracy audit (P1)
+- [ ] Automated metrics from Pylon/Linear (P2)
+- [ ] Pylon webhook integration (P2)
+- [ ] Direct Pylon response send (P3)
+
+### Phase 5 — Calibration
 - [ ] Test with 5 real connector bug tickets
 - [ ] Test with 3 product bug tickets
 - [ ] Test with 3 feature request tickets
@@ -327,7 +421,7 @@ Agents draft, humans execute:
 
 ## Version
 
-**V1.0.0** — Foundation and orchestration complete, ready for Phase 3 (UI)
+**V2.0.0** — UI app live with Admin Portal, feature request system, two-team structure, pm2 service support
 
 ---
 

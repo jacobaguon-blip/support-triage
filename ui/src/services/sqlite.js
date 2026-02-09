@@ -246,6 +246,31 @@ export async function updateFeatureRequest(id, data) {
   return res.json()
 }
 
+// ============ BUG REPORTS ============
+
+export async function loadBugReports() {
+  try {
+    const res = await fetch(`${API_BASE}/bug-reports`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+export async function submitBugReport(data) {
+  const res = await fetch(`${API_BASE}/bug-reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to submit bug report' }))
+    throw new Error(err.error || 'Failed to submit bug report')
+  }
+  return res.json()
+}
+
 export async function deleteFeatureRequest(id) {
   const res = await fetch(`${API_BASE}/feature-requests/${id}`, {
     method: 'DELETE'

@@ -227,8 +227,18 @@ function runClaude(prompt, cwd, opts = {}) {
         writeActivity(investigationDir, phase, 'output', lineBuffer.trim())
       }
       if (code !== 0) {
-        if (investigationDir && phase) writeActivity(investigationDir, phase, 'error', `Claude exited with code ${code}`)
-        reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 500)}`))
+        // Check for authentication errors
+        const combinedOutput = stdout + stderr
+        if (combinedOutput.includes('Not logged in') || combinedOutput.includes('Please run /login')) {
+          const authError = new Error('CLAUDE_AUTH_ERROR: Claude CLI is not authenticated. Run \'claude /login\' in your terminal to re-authenticate.')
+          if (investigationDir && phase) {
+            writeActivity(investigationDir, phase, 'error', 'Claude CLI authentication expired. Run \'claude /login\' in your terminal, then reset this investigation.')
+          }
+          reject(authError)
+        } else {
+          if (investigationDir && phase) writeActivity(investigationDir, phase, 'error', `Claude exited with code ${code}`)
+          reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 500)}`))
+        }
       } else {
         resolve(stdout)
       }
@@ -377,10 +387,28 @@ Return ONLY a raw JSON object (no markdown, no code blocks):
 
   } catch (err) {
     console.error(`[Phase0] ERROR: ${err.message}`)
-    writeActivity(investigationDir, 'phase0', 'error', `Phase 0 failed: ${err.message}`)
+
+    // Check if this is an auth error
+    const isAuthError = err.message && err.message.includes('CLAUDE_AUTH_ERROR')
+
+    if (isAuthError) {
+      // Auth error already logged in runClaude, just update DB status
+      writeActivity(investigationDir, 'phase0', 'error', 'Investigation paused — authentication required')
+    } else {
+      writeActivity(investigationDir, 'phase0', 'error', `Phase 0 failed: ${err.message}`)
+    }
+
     try {
       const ts = new Date().toISOString().replace('T', ' ').split('.')[0]
-      dbHelpers.updateInvestigation(ticketId, { status: 'error', updated_at: ts })
+      const errorMessage = isAuthError
+        ? 'Claude CLI authentication expired. Run \'claude /login\' in your terminal, then reset this investigation.'
+        : err.message
+
+      dbHelpers.updateInvestigation(ticketId, {
+        status: 'error',
+        updated_at: ts,
+        snapshot: JSON.stringify({ error: errorMessage, error_type: isAuthError ? 'auth' : 'general' })
+      })
     } catch {}
   }
 }

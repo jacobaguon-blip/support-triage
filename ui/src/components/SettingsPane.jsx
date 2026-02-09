@@ -1,6 +1,269 @@
-import { useState } from 'react'
-import { saveSettings } from '../services/sqlite'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { saveSettings, loadBugReports, submitBugReport } from '../services/sqlite'
 import '../styles/SettingsPane.css'
+
+function BugReporter() {
+  const [reports, setReports] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(null)
+  const [screenshotPreview, setScreenshotPreview] = useState(null)
+  const [screenshotData, setScreenshotData] = useState(null)
+  const fileInputRef = useRef(null)
+  const dropZoneRef = useRef(null)
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    severity: 'medium',
+    category: 'ui',
+    investigationId: ''
+  })
+
+  useEffect(() => {
+    loadBugReports().then(setReports)
+  }, [])
+
+  const handleScreenshot = useCallback((dataUrl) => {
+    setScreenshotPreview(dataUrl)
+    setScreenshotData(dataUrl)
+  }, [])
+
+  // Handle paste from clipboard (Cmd+V / Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (!showForm) return
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          const reader = new FileReader()
+          reader.onload = (ev) => handleScreenshot(ev.target.result)
+          reader.readAsDataURL(file)
+          return
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [showForm, handleScreenshot])
+
+  const handleFileDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dropZoneRef.current?.classList.remove('drag-over')
+    const file = e.dataTransfer?.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (ev) => handleScreenshot(ev.target.result)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (ev) => handleScreenshot(ev.target.result)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.description.trim()) return
+    setSubmitting(true)
+    try {
+      const result = await submitBugReport({
+        ...form,
+        investigationId: form.investigationId || undefined,
+        screenshot: screenshotData || undefined
+      })
+      setSubmitted(result)
+      setForm({ title: '', description: '', severity: 'medium', category: 'ui', investigationId: '' })
+      setScreenshotPreview(null)
+      setScreenshotData(null)
+      // Refresh list
+      const updated = await loadBugReports()
+      setReports(updated)
+      // Auto-dismiss success after 4s
+      setTimeout(() => {
+        setSubmitted(null)
+        setShowForm(false)
+      }, 4000)
+    } catch (err) {
+      alert(`Failed to submit: ${err.message}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <section className="settings-section card bug-reporter">
+      <div className="bug-reporter-header">
+        <div>
+          <h3>Bug Reporter</h3>
+          <p className="section-description">
+            File bugs for your Claude Code agent to fix
+          </p>
+        </div>
+        <button
+          className={`btn ${showForm ? 'btn-secondary' : 'btn-primary'}`}
+          onClick={() => { setShowForm(!showForm); setSubmitted(null) }}
+          style={{ fontSize: '0.85em', padding: '6px 14px' }}
+        >
+          {showForm ? 'Cancel' : '+ New Bug Report'}
+        </button>
+      </div>
+
+      {submitted && (
+        <div className="bug-success">
+          Bug report saved to <code>{submitted.filename}</code>
+          <br />
+          <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)' }}>
+            Run your Claude Code agent in the project directory to pick it up.
+          </span>
+        </div>
+      )}
+
+      {showForm && !submitted && (
+        <div className="bug-form">
+          <div className="bug-form-row">
+            <label className="setting-label">Title</label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Phase 0 fails when Claude CLI auth expires"
+              className="bug-input"
+              autoFocus
+            />
+          </div>
+
+          <div className="bug-form-row">
+            <label className="setting-label">Description</label>
+            <textarea
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="What happened? What did you expect? Steps to reproduce..."
+              className="bug-textarea"
+              rows={4}
+            />
+          </div>
+
+          <div className="bug-form-grid">
+            <div>
+              <label className="setting-label">Severity</label>
+              <select
+                value={form.severity}
+                onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
+                className="bug-select"
+              >
+                <option value="critical">Critical - system unusable</option>
+                <option value="high">High - major feature broken</option>
+                <option value="medium">Medium - workaround exists</option>
+                <option value="low">Low - cosmetic / minor</option>
+              </select>
+            </div>
+            <div>
+              <label className="setting-label">Category</label>
+              <select
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                className="bug-select"
+              >
+                <option value="ui">UI / Frontend</option>
+                <option value="backend">Backend / API</option>
+                <option value="investigation-runner">Investigation Runner</option>
+                <option value="claude-cli">Claude CLI Integration</option>
+                <option value="mcp-tools">MCP Tools</option>
+                <option value="database">Database</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="setting-label">Investigation # (optional)</label>
+              <input
+                type="text"
+                value={form.investigationId}
+                onChange={e => setForm(f => ({ ...f, investigationId: e.target.value }))}
+                placeholder="e.g. 8317"
+                className="bug-input"
+              />
+            </div>
+          </div>
+
+          {/* Screenshot area */}
+          <div className="bug-form-row">
+            <label className="setting-label">Screenshot (paste, drag, or browse)</label>
+            <div
+              ref={dropZoneRef}
+              className={`bug-dropzone ${screenshotPreview ? 'has-image' : ''}`}
+              onDragOver={e => { e.preventDefault(); dropZoneRef.current?.classList.add('drag-over') }}
+              onDragLeave={() => dropZoneRef.current?.classList.remove('drag-over')}
+              onDrop={handleFileDrop}
+              onClick={() => !screenshotPreview && fileInputRef.current?.click()}
+            >
+              {screenshotPreview ? (
+                <div className="bug-screenshot-preview">
+                  <img src={screenshotPreview} alt="Screenshot preview" />
+                  <button
+                    className="bug-screenshot-remove"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setScreenshotPreview(null)
+                      setScreenshotData(null)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="bug-dropzone-label">
+                  Paste (Cmd+V), drag an image here, or click to browse
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+              />
+            </div>
+          </div>
+
+          <div className="bug-form-actions">
+            <button
+              className="btn btn-primary"
+              onClick={handleSubmit}
+              disabled={submitting || !form.title.trim() || !form.description.trim()}
+            >
+              {submitting ? 'Saving...' : 'Submit Bug Report'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Past reports */}
+      {reports.length > 0 && (
+        <div className="bug-reports-list">
+          <h4 style={{ marginBottom: '8px', fontSize: '0.95em' }}>
+            Recent Reports ({reports.length})
+          </h4>
+          {reports.slice(0, 10).map(r => (
+            <div key={r.filename} className="bug-report-item">
+              <span className={`bug-severity-dot severity-${r.severity}`} />
+              <span className="bug-report-title">{r.title}</span>
+              <span className="bug-report-status">{r.status}</span>
+              {r.hasScreenshot && <span className="bug-report-badge">img</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
 
 function SettingsPane({ settings, onClose }) {
   const [localSettings, setLocalSettings] = useState(settings || {})
@@ -71,6 +334,9 @@ function SettingsPane({ settings, onClose }) {
       </div>
 
       <div className="settings-content">
+        {/* Bug Reporter — first section for visibility */}
+        <BugReporter />
+
         {/* Checkpoints Configuration */}
         <section className="settings-section card">
           <h3>Checkpoints</h3>

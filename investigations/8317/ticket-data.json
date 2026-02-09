@@ -1,0 +1,19 @@
+{
+  "ticket_id": 8317,
+  "pylon_id": "a3a6df68-de78-403b-bd4f-6d62f1c81018",
+  "title": "Provisioning: Immediate availability of {{.principal.id}} for role assignment",
+  "customer_name": "Unknown",
+  "account_id": "68accc7d-a88d-43fe-a1d8-aa4c02eca278",
+  "pylon_link": "https://app.usepylon.com/issues?conversationID=a3a6df68-de78-403b-bd4f-6d62f1c81018",
+  "source": "slack",
+  "state": "waiting_on_you",
+  "created_at": "2026-02-09T02:04:13Z",
+  "body": "How do I make the http connector support provisioning role on new account requests? Example with a test API I made since eMSL @ Lilly is still pending changes: 1. Submit request for role, which will require new account: https://gpslab.conductor.one/task/34 2. API creates new account, but C1 gives error: error using connector provision [attempt #1]: ProcessConnectorActions/ResolveCreateAccount:: failed to provision app user: provision_app_user: failed to run transaction: provision_app_user: fa...",
+  "tags": [],
+  "fetched_at": "2026-02-09T18:31:08.000Z",
+  "classification": "product_bug",
+  "connector_name": null,
+  "product_area": "API / Terraform",
+  "priority": "P2",
+  "suggested_priority": "P2"
+}

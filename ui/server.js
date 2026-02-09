@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import initSqlJs from 'sql.js'
+import { spawn } from 'child_process'
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, readdirSync, renameSync, cpSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
@@ -22,7 +23,7 @@ const CLAUDE_MD = join(TRIAGE_DIR, 'CLAUDE.md')
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
 
 // ============ DATABASE ============
 
@@ -1021,6 +1022,76 @@ app.put('/api/settings', (req, res) => {
   }
 })
 
+// GET /api/health/claude - Check Claude CLI authentication (must be before /api/health)
+app.get('/api/health/claude', (req, res) => {
+  try {
+    let responseSent = false
+
+    const timeout = setTimeout(() => {
+      if (!responseSent) {
+        responseSent = true
+        res.json({ authenticated: false, error: 'Health check timed out after 10s' })
+      }
+    }, 10000)
+
+    const child = spawn('claude', ['-p', '--output-format', 'text'], {
+      cwd: TRIAGE_DIR,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    child.on('error', (err) => {
+      clearTimeout(timeout)
+      if (!responseSent) {
+        responseSent = true
+        res.json({ authenticated: false, error: `Failed to spawn claude: ${err.message}` })
+      }
+    })
+
+    child.stdout.on('data', (data) => { stdout += data.toString() })
+    child.stderr.on('data', (data) => { stderr += data.toString() })
+
+    child.on('close', (code) => {
+      clearTimeout(timeout)
+
+      if (responseSent) return
+
+      const combinedOutput = stdout + stderr
+
+      // Check for auth errors
+      if (combinedOutput.includes('Not logged in') || combinedOutput.includes('Please run /login')) {
+        responseSent = true
+        return res.json({
+          authenticated: false,
+          message: 'Claude CLI is not authenticated. Run \'claude /login\' to authenticate.'
+        })
+      }
+
+      // If exit code is 0, authentication is working
+      if (code === 0) {
+        responseSent = true
+        return res.json({ authenticated: true, message: 'Claude CLI is authenticated and ready' })
+      }
+
+      // Other errors
+      responseSent = true
+      res.json({
+        authenticated: false,
+        error: `Claude exited with code ${code}`,
+        message: 'Claude CLI check failed. Please verify your installation.'
+      })
+    })
+
+    // Send a minimal test prompt
+    child.stdin.write('Respond with OK')
+    child.stdin.end()
+  } catch (error) {
+    res.json({ authenticated: false, error: error.message })
+  }
+})
+
 // GET /api/health - Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -1218,6 +1289,153 @@ app.delete('/api/feature-requests/:id', (req, res) => {
     res.json({ success: true, message: `Feature request #${id} deleted` })
   } catch (error) {
     console.error('Error deleting feature request:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// ============ BUG REPORTS (for Claude Code agent) ============
+
+const BUG_REPORTS_DIR = join(TRIAGE_DIR, 'bug-reports')
+
+// GET /api/bug-reports — list all bug reports
+app.get('/api/bug-reports', (req, res) => {
+  try {
+    mkdirSync(BUG_REPORTS_DIR, { recursive: true })
+    const files = readdirSync(BUG_REPORTS_DIR)
+      .filter(f => f.endsWith('.md'))
+      .sort()
+      .reverse()
+    const reports = files.map(f => {
+      const content = readFileSync(join(BUG_REPORTS_DIR, f), 'utf-8')
+      const titleMatch = content.match(/^# Bug Report: (.+)$/m)
+      const severityMatch = content.match(/\*\*Severity:\*\* (.+)$/m)
+      const statusMatch = content.match(/\*\*Status:\*\* (.+)$/m)
+      const dateMatch = content.match(/\*\*Filed:\*\* (.+)$/m)
+      return {
+        filename: f,
+        title: titleMatch ? titleMatch[1] : f,
+        severity: severityMatch ? severityMatch[1] : 'unknown',
+        status: statusMatch ? statusMatch[1] : 'open',
+        filed: dateMatch ? dateMatch[1] : '',
+        hasScreenshot: existsSync(join(BUG_REPORTS_DIR, f.replace('.md', '.png')))
+      }
+    })
+    res.json(reports)
+  } catch (error) {
+    console.error('Error listing bug reports:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/bug-reports — create a bug report as a markdown file for Claude Code
+app.post('/api/bug-reports', (req, res) => {
+  try {
+    mkdirSync(BUG_REPORTS_DIR, { recursive: true })
+
+    const { title, description, severity, category, investigationId, screenshot } = req.body
+    if (!title || !description) {
+      return res.status(400).json({ error: 'Title and description are required' })
+    }
+
+    const now = new Date()
+    const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)
+    const filename = `${ts}-${slug}`
+
+    // Gather investigation context if an investigation ID was provided
+    let investigationContext = ''
+    if (investigationId) {
+      const invDir = join(INVESTIGATIONS_DIR, String(investigationId))
+      // Ticket data
+      const tdPath = join(invDir, 'ticket-data.json')
+      if (existsSync(tdPath)) {
+        try {
+          const td = JSON.parse(readFileSync(tdPath, 'utf-8'))
+          investigationContext += `\n### Ticket Data\n`
+          investigationContext += `- **Ticket ID:** ${td.ticket_id || investigationId}\n`
+          investigationContext += `- **Title:** ${td.title || 'N/A'}\n`
+          investigationContext += `- **Customer:** ${td.customer_name || 'N/A'}\n`
+          investigationContext += `- **Classification:** ${td.classification || 'N/A'}\n`
+          investigationContext += `- **Priority:** ${td.priority || 'N/A'}\n`
+          investigationContext += `- **State:** ${td.state || 'N/A'}\n`
+        } catch (e) {
+          investigationContext += `\n_Could not parse ticket-data.json: ${e.message}_\n`
+        }
+      }
+      // Activity log (last 20 entries)
+      const actPath = join(invDir, 'activity-log.jsonl')
+      if (existsSync(actPath)) {
+        try {
+          const lines = readFileSync(actPath, 'utf-8').trim().split('\n').slice(-20)
+          investigationContext += `\n### Recent Activity Log (last ${lines.length} entries)\n\`\`\`\n`
+          for (const line of lines) {
+            try {
+              const entry = JSON.parse(line)
+              investigationContext += `[${entry.ts}] [${entry.phase}/${entry.type}] ${entry.message}\n`
+            } catch { investigationContext += line + '\n' }
+          }
+          investigationContext += `\`\`\`\n`
+        } catch (e) {
+          investigationContext += `\n_Could not read activity log: ${e.message}_\n`
+        }
+      }
+      // DB state
+      try {
+        const inv = queryOne('SELECT * FROM investigations WHERE id = ?', [parseInt(investigationId)])
+        if (inv) {
+          investigationContext += `\n### DB State\n`
+          investigationContext += `- **Status:** ${inv.status}\n`
+          investigationContext += `- **Phase:** ${inv.current_phase || 'N/A'}\n`
+          investigationContext += `- **Agent Mode:** ${inv.agent_mode || 'N/A'}\n`
+          investigationContext += `- **Created:** ${inv.created_at}\n`
+          investigationContext += `- **Updated:** ${inv.updated_at}\n`
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Build the markdown report
+    const report = `# Bug Report: ${title}
+
+**Filed:** ${now.toISOString()}
+**Severity:** ${severity || 'medium'}
+**Category:** ${category || 'general'}
+**Status:** open
+${investigationId ? `**Investigation:** #${investigationId}` : ''}
+${screenshot ? `**Screenshot:** ${filename}.png` : ''}
+
+## Description
+
+${description}
+${investigationContext ? `\n## Investigation Context\n${investigationContext}` : ''}
+## Instructions for Agent
+
+Fix this bug in the Support Triage System codebase. Key files:
+- \`ui/server.js\` — Express API server
+- \`ui/investigation-runner.js\` — Phase execution and Claude CLI integration
+- \`ui/src/components/\` — React UI components
+
+After diagnosing, propose a fix and explain the root cause.
+`
+
+    // Write the markdown report
+    writeFileSync(join(BUG_REPORTS_DIR, `${filename}.md`), report)
+
+    // Write the screenshot if provided (base64 PNG)
+    if (screenshot) {
+      const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '')
+      const imgBuffer = Buffer.from(base64Data, 'base64')
+      writeFileSync(join(BUG_REPORTS_DIR, `${filename}.png`), imgBuffer)
+    }
+
+    console.log(`[BugReport] Created: ${filename}.md`)
+    res.json({
+      success: true,
+      filename: `${filename}.md`,
+      path: join(BUG_REPORTS_DIR, `${filename}.md`),
+      message: `Bug report saved to bug-reports/${filename}.md`
+    })
+  } catch (error) {
+    console.error('Error creating bug report:', error)
     res.status(500).json({ error: error.message })
   }
 })

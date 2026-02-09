@@ -12,7 +12,17 @@
       "Bash(./triage-launcher.sh:*)",
       "mcp__pylon__pylon_get_issue",
       "mcp__pylon__pylon_get_issue_body",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(timeout 3 node:*)",
+      "Bash(node -c:*)",
+      "Bash(pkill:*)",
+      "Bash(node test-endpoint.mjs:*)",
+      "Bash(/Users/jacobaguon/support-triage/simple-test.sh)",
+      "Bash(node --check:*)",
+      "Bash(timeout 5 node:*)",
+      "Bash(node -p:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

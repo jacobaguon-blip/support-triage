@@ -1,0 +1,19 @@
+{
+  "ticket_id": 7907,
+  "pylon_id": "a2b40cc1-a17b-40ed-9e5d-3e54a4cec2d8",
+  "title": "AWS Connector integration issue",
+  "customer_name": "Unknown",
+  "account_id": "d2af0cf2-e96c-47cc-b348-aefe1d5eea3d",
+  "pylon_link": "https://app.usepylon.com/issues?conversationID=a2b40cc1-a17b-40ed-9e5d-3e54a4cec2d8",
+  "source": "slack",
+  "state": "waiting_on_you",
+  "created_at": "2026-01-19T12:45:10Z",
+  "body": "C1 AWS Connector 🧵 and 🎫 I realise that we already have another thread for the AWS \"sub)accounts issue, but I think this is different so I'm starting over.",
+  "tags": [],
+  "fetched_at": "2026-02-09T20:25:51.640Z",
+  "classification": "connector_bug",
+  "connector_name": "aws",
+  "product_area": "Connectors",
+  "priority": "P3",
+  "suggested_priority": "P3"
+}
