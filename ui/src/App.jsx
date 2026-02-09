@@ -4,6 +4,7 @@ import InvestigationDetail from './components/InvestigationDetail'
 import SettingsPane from './components/SettingsPane'
 import AdminPortal from './components/AdminPortal'
 import MCPHealthCheck from './components/MCPHealthCheck'
+import MCPCredentials from './components/MCPCredentials'
 import { loadInvestigations, loadSettings, createInvestigation } from './services/sqlite'
 import './styles/App.css'
 
@@ -16,6 +17,7 @@ function App() {
   const [selectedTicketId, setSelectedTicketId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showCredentials, setShowCredentials] = useState(false)
   const [settings, setSettings] = useState(null)
   const [error, setError] = useState(null)
   const [showMCPHealth, setShowMCPHealth] = useState(true)
@@ -152,6 +154,19 @@ function App() {
           >
             Health
           </button>
+          <button
+            className={`btn ${showCredentials ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => {
+              setShowCredentials(!showCredentials)
+              if (!showCredentials) {
+                setShowSettings(false)
+                setShowAdmin(false)
+              }
+            }}
+            title="Manage MCP credentials"
+          >
+            Credentials
+          </button>
         </div>
       </header>
 
@@ -176,6 +191,8 @@ function App() {
         <main className="main-content">
           {showAdmin ? (
             <AdminPortal onClose={() => setShowAdmin(false)} />
+          ) : showCredentials ? (
+            <MCPCredentials onClose={() => setShowCredentials(false)} />
           ) : showSettings ? (
             <SettingsPane
               settings={settings}

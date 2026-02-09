@@ -23,7 +23,9 @@
       "Bash(node -p:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git push:*)",
+      "Bash(claude:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

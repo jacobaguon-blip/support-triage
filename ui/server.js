@@ -10,6 +10,7 @@ import { dirname } from 'path'
 import { runPhase0, runPhase1, runPhase2, populateFromTicketData } from './investigation-runner.js'
 import { createSnapshot, restoreToVersion, getVersions, getVersionDiff } from './version-manager.js'
 import { syncTicketResponses, checkForNewResponses } from './response-sync.js'
+import { encrypt, decrypt, generateMCPConfig, writeMCPConfig, maskApiKey, testConnection } from './credentials-manager.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -161,6 +162,19 @@ function createAllTables() {
       created_at DATETIME,
       fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       triggered_reanalysis INTEGER DEFAULT 0
+    )
+  `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS mcp_credentials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      service TEXT NOT NULL UNIQUE,
+      encrypted_api_key TEXT NOT NULL,
+      encrypted_config TEXT,
+      is_enabled INTEGER DEFAULT 1,
+      last_validated_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `)
 }
@@ -1427,6 +1441,201 @@ app.delete('/api/feature-requests/:id', (req, res) => {
   }
 })
 
+// ============ MCP CREDENTIALS MANAGEMENT ============
+
+// GET /api/credentials/mcp — list all MCP credentials (masked)
+app.get('/api/credentials/mcp', (req, res) => {
+  try {
+    const credentials = queryAll('SELECT id, service, is_enabled, last_validated_at, created_at, updated_at FROM mcp_credentials ORDER BY service ASC')
+
+    // Mask API keys for display
+    const masked = credentials.map(cred => ({
+      ...cred,
+      api_key_preview: '••••••••', // Fully masked in list view
+      is_configured: true
+    }))
+
+    res.json(masked)
+  } catch (error) {
+    console.error('Error loading MCP credentials:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// GET /api/credentials/mcp/:service — get specific credential (with masked key)
+app.get('/api/credentials/mcp/:service', (req, res) => {
+  try {
+    const service = req.params.service
+    const cred = queryOne('SELECT * FROM mcp_credentials WHERE service = ?', [service])
+
+    if (!cred) {
+      return res.json({ service, configured: false })
+    }
+
+    // Decrypt and mask the API key
+    const decryptedKey = decrypt(cred.encrypted_api_key)
+    const maskedKey = maskApiKey(decryptedKey)
+
+    res.json({
+      id: cred.id,
+      service: cred.service,
+      api_key_preview: maskedKey,
+      is_enabled: cred.is_enabled,
+      last_validated_at: cred.last_validated_at,
+      configured: true
+    })
+  } catch (error) {
+    console.error('Error loading credential:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/credentials/mcp/:service — save/update credential
+app.post('/api/credentials/mcp/:service', async (req, res) => {
+  try {
+    const service = req.params.service
+    const { api_key, config, is_enabled } = req.body
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'API key is required' })
+    }
+
+    // Validate service
+    const validServices = ['pylon', 'linear', 'slack', 'notion']
+    if (!validServices.includes(service)) {
+      return res.status(400).json({ error: `Invalid service. Must be one of: ${validServices.join(', ')}` })
+    }
+
+    // Encrypt credentials
+    const encryptedKey = encrypt(api_key)
+    const encryptedConfig = config ? encrypt(JSON.stringify(config)) : null
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+
+    // Check if credential already exists
+    const existing = queryOne('SELECT id FROM mcp_credentials WHERE service = ?', [service])
+
+    if (existing) {
+      // Update
+      run(
+        `UPDATE mcp_credentials SET encrypted_api_key = ?, encrypted_config = ?, is_enabled = ?, updated_at = ? WHERE service = ?`,
+        [encryptedKey, encryptedConfig, is_enabled !== undefined ? is_enabled : 1, timestamp, service]
+      )
+    } else {
+      // Insert
+      run(
+        `INSERT INTO mcp_credentials (service, encrypted_api_key, encrypted_config, is_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [service, encryptedKey, encryptedConfig, is_enabled !== undefined ? is_enabled : 1, timestamp, timestamp]
+      )
+    }
+
+    // Regenerate MCP config
+    try {
+      const allCredentials = queryAll('SELECT * FROM mcp_credentials')
+      const mcpConfig = generateMCPConfig(allCredentials)
+      writeMCPConfig(mcpConfig)
+      console.log(`[MCP Credentials] Updated config for ${service}`)
+    } catch (configErr) {
+      console.error('Error regenerating MCP config:', configErr.message)
+      // Don't fail the request if config generation fails
+    }
+
+    res.json({ success: true, service, message: `Credentials saved for ${service}` })
+  } catch (error) {
+    console.error('Error saving credential:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/credentials/mcp/:service/test — test connection
+app.post('/api/credentials/mcp/:service/test', async (req, res) => {
+  try {
+    const service = req.params.service
+    const { api_key } = req.body
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'API key is required for testing' })
+    }
+
+    const result = await testConnection(service, api_key)
+
+    if (result.success) {
+      // Update last_validated_at
+      const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+      run('UPDATE mcp_credentials SET last_validated_at = ? WHERE service = ?', [timestamp, service])
+    }
+
+    res.json(result)
+  } catch (error) {
+    console.error('Error testing connection:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// DELETE /api/credentials/mcp/:service — delete credential
+app.delete('/api/credentials/mcp/:service', (req, res) => {
+  try {
+    const service = req.params.service
+    const existing = queryOne('SELECT id FROM mcp_credentials WHERE service = ?', [service])
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Credential not found' })
+    }
+
+    run('DELETE FROM mcp_credentials WHERE service = ?', [service])
+
+    // Regenerate MCP config without this service
+    try {
+      const allCredentials = queryAll('SELECT * FROM mcp_credentials')
+      const mcpConfig = generateMCPConfig(allCredentials)
+      writeMCPConfig(mcpConfig)
+      console.log(`[MCP Credentials] Removed ${service} from config`)
+    } catch (configErr) {
+      console.error('Error regenerating MCP config:', configErr.message)
+    }
+
+    res.json({ success: true, service, message: `Credentials deleted for ${service}` })
+  } catch (error) {
+    console.error('Error deleting credential:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// PATCH /api/credentials/mcp/:service/toggle — enable/disable credential
+app.patch('/api/credentials/mcp/:service/toggle', (req, res) => {
+  try {
+    const service = req.params.service
+    const { is_enabled } = req.body
+
+    if (is_enabled === undefined) {
+      return res.status(400).json({ error: 'is_enabled field is required' })
+    }
+
+    const existing = queryOne('SELECT id FROM mcp_credentials WHERE service = ?', [service])
+    if (!existing) {
+      return res.status(404).json({ error: 'Credential not found' })
+    }
+
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+    run('UPDATE mcp_credentials SET is_enabled = ?, updated_at = ? WHERE service = ?', [is_enabled ? 1 : 0, timestamp, service])
+
+    // Regenerate MCP config
+    try {
+      const allCredentials = queryAll('SELECT * FROM mcp_credentials')
+      const mcpConfig = generateMCPConfig(allCredentials)
+      writeMCPConfig(mcpConfig)
+      console.log(`[MCP Credentials] ${is_enabled ? 'Enabled' : 'Disabled'} ${service}`)
+    } catch (configErr) {
+      console.error('Error regenerating MCP config:', configErr.message)
+    }
+
+    res.json({ success: true, service, is_enabled, message: `${service} ${is_enabled ? 'enabled' : 'disabled'}` })
+  } catch (error) {
+    console.error('Error toggling credential:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // ============ BUG REPORTS (for Claude Code agent) ============
 
 const BUG_REPORTS_DIR = join(TRIAGE_DIR, 'bug-reports')
@@ -1638,6 +1847,21 @@ const PORT = 3001
 initDB().then(() => {
   // Bootstrap: populate any investigations that have ticket-data.json but null fields
   bootstrapInvestigations()
+
+  // Initialize MCP configuration from stored credentials
+  try {
+    const credentials = queryAll('SELECT * FROM mcp_credentials WHERE is_enabled = 1')
+    if (credentials.length > 0) {
+      const mcpConfig = generateMCPConfig(credentials)
+      writeMCPConfig(mcpConfig)
+      console.log(`[MCP Config] Initialized with ${credentials.length} service(s): ${credentials.map(c => c.service).join(', ')}`)
+    } else {
+      console.log('[MCP Config] No credentials configured - skipping MCP config generation')
+    }
+  } catch (mcpErr) {
+    console.error('[MCP Config] Error initializing:', mcpErr.message)
+    console.error('  Investigations may fail if MCP servers are not configured manually')
+  }
 
   app.listen(PORT, () => {
     console.log(`\n  Support Triage API server running on http://localhost:${PORT}`)
