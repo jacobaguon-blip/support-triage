@@ -22,7 +22,8 @@
       "Bash(timeout 5 node:*)",
       "Bash(node -p:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(python3:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
