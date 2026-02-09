@@ -1092,6 +1092,140 @@ app.get('/api/health/claude', (req, res) => {
   }
 })
 
+// GET /api/health/mcp - Check all MCP servers (Pylon, Linear, Slack, Notion)
+app.get('/api/health/mcp', async (req, res) => {
+  const results = {
+    claude: { status: 'unknown', message: '', server: 'Claude CLI' },
+    pylon: { status: 'unknown', message: '', server: 'Pylon MCP' },
+    linear: { status: 'unknown', message: '', server: 'Linear MCP' },
+    slack: { status: 'unknown', message: '', server: 'Slack MCP' },
+    notion: { status: 'unknown', message: '', server: 'Notion MCP' }
+  }
+
+  // Helper to test an MCP server with a simple query
+  async function testMCPServer(serverName, testPrompt, successPattern, errorPatterns = []) {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({ status: 'error', message: `Timeout after 15s` })
+      }, 15000)
+
+      const child = spawn('claude', ['-p', '--output-format', 'text'], {
+        cwd: TRIAGE_DIR,
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+
+      let stdout = ''
+      let stderr = ''
+      let responseSent = false
+
+      child.on('error', (err) => {
+        if (!responseSent) {
+          clearTimeout(timeout)
+          responseSent = true
+          resolve({ status: 'error', message: `Failed to spawn: ${err.message}` })
+        }
+      })
+
+      child.stdout.on('data', (data) => { stdout += data.toString() })
+      child.stderr.on('data', (data) => { stderr += data.toString() })
+
+      child.on('close', (code) => {
+        if (responseSent) return
+        clearTimeout(timeout)
+        responseSent = true
+
+        const output = stdout + stderr
+
+        // Check for Claude auth errors first
+        if (output.includes('Not logged in') || output.includes('Please run /login')) {
+          return resolve({ status: 'error', message: 'Claude CLI not authenticated' })
+        }
+
+        // Check for specific error patterns
+        for (const pattern of errorPatterns) {
+          if (output.toLowerCase().includes(pattern.toLowerCase())) {
+            return resolve({ status: 'error', message: pattern })
+          }
+        }
+
+        // Check for MCP server not available
+        if (output.includes('No MCP servers found') || output.includes('MCP server not found')) {
+          return resolve({ status: 'error', message: 'MCP server not configured' })
+        }
+
+        // Check for authentication errors
+        if (output.includes('authentication') || output.includes('unauthorized') || output.includes('401')) {
+          return resolve({ status: 'error', message: 'Authentication failed' })
+        }
+
+        // Check for success
+        if (code === 0 && successPattern && output.includes(successPattern)) {
+          return resolve({ status: 'ok', message: 'Connected and authenticated' })
+        }
+
+        // If no specific errors but command succeeded, assume OK
+        if (code === 0) {
+          return resolve({ status: 'ok', message: 'Connected' })
+        }
+
+        // Generic failure
+        resolve({ status: 'error', message: `Exit code ${code}` })
+      })
+
+      child.stdin.write(testPrompt)
+      child.stdin.end()
+    })
+  }
+
+  // Test each MCP server in parallel
+  const tests = [
+    // Test Pylon
+    testMCPServer(
+      'pylon',
+      'Using Pylon MCP tools, call pylon_list_issues with limit 1. Just respond with "PYLON_OK" if it works.',
+      'PYLON_OK',
+      ['pylon', 'api key', 'credentials']
+    ).then(result => { results.pylon = { ...results.pylon, ...result } }),
+
+    // Test Linear
+    testMCPServer(
+      'linear',
+      'Using Linear MCP tools, search for issues with query "test" and limit 1. Just respond with "LINEAR_OK" if it works.',
+      'LINEAR_OK',
+      ['linear', 'api key', 'credentials']
+    ).then(result => { results.linear = { ...results.linear, ...result } }),
+
+    // Test Slack
+    testMCPServer(
+      'slack',
+      'Using Slack MCP tools, search for messages with query "test" and limit 1. Just respond with "SLACK_OK" if it works.',
+      'SLACK_OK',
+      ['slack', 'token', 'credentials']
+    ).then(result => { results.slack = { ...results.slack, ...result } }),
+
+    // Test Notion
+    testMCPServer(
+      'notion',
+      'Using Notion MCP tools, search for pages with query "test". Just respond with "NOTION_OK" if it works.',
+      'NOTION_OK',
+      ['notion', 'api key', 'credentials']
+    ).then(result => { results.notion = { ...results.notion, ...result } })
+  ]
+
+  // Wait for all tests to complete
+  await Promise.all(tests)
+
+  // Overall status
+  const allOk = Object.values(results).every(r => r.status === 'ok')
+  const anyError = Object.values(results).some(r => r.status === 'error')
+
+  res.json({
+    overall: allOk ? 'ok' : anyError ? 'error' : 'warning',
+    timestamp: new Date().toISOString(),
+    servers: results
+  })
+})
+
 // GET /api/health - Health check
 app.get('/api/health', (req, res) => {
   res.json({

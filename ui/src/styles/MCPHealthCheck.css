@@ -1,0 +1,296 @@
+/* MCP Health Check Modal */
+
+.mcp-health-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.mcp-health-modal {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+
+.mcp-health-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.mcp-health-header.ok {
+  background: #ecfdf5;
+  border-bottom-color: #86efac;
+}
+
+.mcp-health-header.error {
+  background: #fef2f2;
+  border-bottom-color: #fca5a5;
+}
+
+.mcp-health-header.warning {
+  background: #fefce8;
+  border-bottom-color: #fde047;
+}
+
+.mcp-health-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Body */
+
+.mcp-health-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.mcp-health-spinner {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--c1-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.mcp-health-spinner p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Grid */
+
+.mcp-health-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.mcp-health-item {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  transition: all 0.2s;
+}
+
+.mcp-health-item.status-ok {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.mcp-health-item.status-error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.mcp-health-item.status-unknown {
+  border-color: #fde047;
+  background: #fefce8;
+}
+
+.mcp-health-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.status-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.status-ok .status-icon {
+  background: #22c55e;
+  color: white;
+}
+
+.status-error .status-icon {
+  background: #ef4444;
+  color: white;
+}
+
+.status-unknown .status-icon {
+  background: #eab308;
+  color: white;
+}
+
+.server-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.mcp-health-item-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding-left: 34px;
+}
+
+/* Warning Box */
+
+.mcp-health-warning {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.mcp-health-warning strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.mcp-health-warning ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #78350f;
+}
+
+.mcp-health-warning li {
+  margin: 4px 0;
+}
+
+.mcp-health-warning code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.warning-note {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #92400e;
+  font-style: italic;
+}
+
+/* Error State */
+
+.error-message {
+  color: var(--error-color);
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.error-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Footer */
+
+.mcp-health-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.mcp-health-footer button {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--border-color);
+}
+
+.btn-primary {
+  background: var(--c1-primary);
+  color: white;
+  border-color: var(--c1-primary);
+}
+
+.btn-primary:hover {
+  background: var(--c1-primary-hover);
+  border-color: var(--c1-primary-hover);
+}
+
+.btn-retry {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.btn-retry:hover {
+  background: var(--bg-tertiary);
+}
+
+.btn-dismiss {
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.btn-dismiss:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+  .mcp-health-modal {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .mcp-health-header,
+  .mcp-health-body,
+  .mcp-health-footer {
+    padding: 16px;
+  }
+
+  .mcp-health-footer {
+    flex-direction: column;
+  }
+
+  .mcp-health-footer button {
+    width: 100%;
+  }
+}

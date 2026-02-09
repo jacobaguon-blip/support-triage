@@ -3,6 +3,7 @@ import TicketSidebar from './components/TicketSidebar'
 import InvestigationDetail from './components/InvestigationDetail'
 import SettingsPane from './components/SettingsPane'
 import AdminPortal from './components/AdminPortal'
+import MCPHealthCheck from './components/MCPHealthCheck'
 import { loadInvestigations, loadSettings, createInvestigation } from './services/sqlite'
 import './styles/App.css'
 
@@ -17,6 +18,7 @@ function App() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [settings, setSettings] = useState(null)
   const [error, setError] = useState(null)
+  const [showMCPHealth, setShowMCPHealth] = useState(true)
   const selectedTicketIdRef = useRef(null)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR)
   const isDragging = useRef(false)
@@ -114,6 +116,11 @@ function App() {
 
   return (
     <div className="app">
+      {/* MCP Health Check on startup */}
+      {showMCPHealth && (
+        <MCPHealthCheck onClose={() => setShowMCPHealth(false)} />
+      )}
+
       <header className="app-header">
         <h1>Support Triage System</h1>
         <div className="header-actions">
@@ -137,6 +144,13 @@ function App() {
             }}
           >
             Settings
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowMCPHealth(true)}
+            title="Check MCP server health"
+          >
+            Health
           </button>
         </div>
       </header>
