@@ -1,0 +1,19 @@
+{
+  "ticket_id": 8314,
+  "pylon_id": "59b913d9-3ab6-4631-8265-e53dcaa6942c",
+  "title": "SailPoint-IIQ repo delivery and XML file guidance",
+  "customer_name": "Unknown",
+  "account_id": "f28ee88d-49ca-41c5-b09f-4b755ca93376",
+  "pylon_link": "https://app.usepylon.com/issues?conversationID=59b913d9-3ab6-4631-8265-e53dcaa6942c",
+  "source": "slack",
+  "state": "waiting_on_you",
+  "created_at": "2026-02-06T20:58:01Z",
+  "body": "@rich.​manfredi I just sent over a copy of our sailpoint-iiq repo. some large files didn't some through due to cert errors, but hopefully this gives you something to work with. In regards to any xml files, let us know which you think would be helpful. We can provide these",
+  "tags": [],
+  "fetched_at": "2026-02-08T23:52:31.772Z",
+  "classification": "product_bug",
+  "connector_name": null,
+  "product_area": "Platform / UI",
+  "priority": "P2",
+  "suggested_priority": "P2"
+}

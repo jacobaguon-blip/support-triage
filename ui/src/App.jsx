@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import TicketSidebar from './components/TicketSidebar'
 import InvestigationDetail from './components/InvestigationDetail'
 import SettingsPane from './components/SettingsPane'
+import AdminPortal from './components/AdminPortal'
 import { loadInvestigations, loadSettings, createInvestigation } from './services/sqlite'
 import './styles/App.css'
 
@@ -13,6 +14,7 @@ function App() {
   const [investigations, setInvestigations] = useState([])
   const [selectedTicketId, setSelectedTicketId] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
   const [settings, setSettings] = useState(null)
   const [error, setError] = useState(null)
   const selectedTicketIdRef = useRef(null)
@@ -119,8 +121,20 @@ function App() {
             <span className="error-indicator" title={error}>Backend Disconnected</span>
           )}
           <button
+            className={`btn ${showAdmin ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => {
+              setShowAdmin(!showAdmin)
+              if (!showAdmin) setShowSettings(false)
+            }}
+          >
+            Admin
+          </button>
+          <button
             className="btn btn-secondary"
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => {
+              setShowSettings(!showSettings)
+              if (!showSettings) setShowAdmin(false)
+            }}
           >
             Settings
           </button>
@@ -146,7 +160,9 @@ function App() {
         </div>
 
         <main className="main-content">
-          {showSettings ? (
+          {showAdmin ? (
+            <AdminPortal onClose={() => setShowAdmin(false)} />
+          ) : showSettings ? (
             <SettingsPane
               settings={settings}
               onClose={() => setShowSettings(false)}

@@ -1,8 +1,8 @@
-# Support Ticket Triage System — Agent Instructions
+# Support Ticket Triage System
 
 ## Project Overview
 
-This system automates investigation of ConductorOne technical support tickets by coordinating specialist agents that research across code, Linear, Slack, Pylon, and Notion.
+This system automates investigation of ConductorOne technical support tickets by coordinating specialist agents that research across code, Linear, Slack, Pylon, and Notion. It includes a React-based UI for managing investigations.
 
 **Purpose:** Help Technical Support Engineers quickly understand customer issues by automatically gathering context from multiple sources, analyzing relevant code, finding similar past issues, and generating comprehensive investigation documents with customer response drafts.
 
@@ -12,7 +12,394 @@ This system automates investigation of ConductorOne technical support tickets by
 
 ---
 
-## Agent Roles
+## UI Development — Active Work
+
+### Tech Stack
+
+- **Frontend:** React 18 + Vite 5 (runs on port 3000)
+- **Backend:** Express 5 (runs on port 3001)
+- **Database:** SQLite via sql.js (browser-compatible, file: `triage.db`)
+- **Font:** Inter (via Google Fonts)
+- **No CSS framework** — all custom CSS with CSS variables
+
+### Starting the Dev Server
+
+```bash
+cd ui && npm run dev    # Vite on port 3000
+cd ui && node server.js # Express API on port 3001
+```
+
+### Design System (C1 Light Theme)
+
+All colors and tokens live in `ui/src/styles/index.css` as CSS custom properties:
+
+- **Brand:** `--c1-primary: #6366F1` (indigo/purple), `--c1-primary-hover: #4F46E5`
+- **Backgrounds:** `--bg-primary: #FFFFFF`, `--bg-secondary: #F9FAFB`, `--bg-tertiary: #F3F4F6`
+- **Text:** `--text-primary: #111827`, `--text-secondary: #6B7280`, `--text-muted: #9CA3AF`
+- **Borders:** `--border-color: #E5E7EB`, `--border-strong: #D1D5DB`
+- **Sidebar:** Dark navy `--sidebar-bg: #1A1D2E` with light text
+- **Status badges:** Pill-shaped (`--radius-pill: 9999px`), semantic colors
+- **Shadows:** Minimal/subtle (xs, sm, md)
+- **Radii:** sm=4px, md=6px, lg=8px, xl=12px, pill=9999px
+
+**Design philosophy:** Clean, professional, ConductorOne-branded. Looks like Linear/Intercom/Zendesk. No dark mode (yet). Light borders, subtle shadows, compact spacing.
+
+### Component Architecture
+
+```
+ui/src/
+├── App.jsx                          # Root: header + sidebar + main content
+├── main.jsx                         # Vite entry point
+├── components/
+│   ├── TicketSidebar.jsx            # Left sidebar: investigation list, new ticket button
+│   ├── InvestigationDetail.jsx      # Main view: ticket bar + detail body (content + drawer)
+│   ├── PhaseTabBar.jsx              # 4-phase dot stepper (Classification → Solution Review)
+│   ├── PhaseContent.jsx             # Classic mode: renders phase-specific views
+│   ├── ClassificationView.jsx       # Phase 0: ticket metadata grid, body preview
+│   ├── ContextGatheringView.jsx     # Phase 1: markdown findings display
+│   ├── ConversationStream.jsx       # Conversation mode: real-time bubble stream
+│   ├── ConversationBubble.jsx       # 7 bubble types (customer, agent, system, decision, etc.)
+│   ├── CheckpointPanel.jsx          # Drawer: checkpoint approval buttons + feedback
+│   ├── CheckpointPrompt.jsx         # Inline: checkpoint approval at bottom of conversation
+│   ├── RunTabs.jsx                  # Run selector dropdown + Hard Reset button
+│   ├── VersionTimeline.jsx          # Backtracking version history
+│   ├── BacktrackBar.jsx             # Anchor version indicator bar
+│   ├── DecisionLog.jsx              # History of checkpoint decisions
+│   ├── ActivityFeed.jsx             # Execution activity log
+│   ├── SourcesList.jsx              # Source citation chips
+│   ├── DocumentPreview.jsx          # File preview pane
+│   └── SettingsPane.jsx             # Settings UI
+├── styles/
+│   ├── index.css                    # Global CSS variables + base styles
+│   ├── App.css                      # App layout + resize handle
+│   ├── TicketSidebar.css            # Sidebar: dark navy, compact cards
+│   ├── InvestigationDetail.css      # Detail layout: ticket bar + body
+│   ├── PhaseTabBar.css              # Phase stepper dots + connectors
+│   ├── PhaseViews.css               # Phase content cards, grids, badges
+│   ├── CheckpointPanel.css          # Checkpoint buttons, feedback
+│   ├── ConversationStream.css       # Conversation spine + items
+│   ├── ConversationBubble.css       # 7 bubble types + markdown rendering
+│   ├── ActivityFeed.css             # Activity log entries
+│   ├── DecisionLog.css              # Decision history entries
+│   ├── SettingsPane.css             # Settings grid
+│   ├── DocumentPreview.css          # Document viewer
+│   ├── RunTabs.css                  # Run dropdown + hard reset
+│   ├── VersionTimeline.css          # Version nodes + connectors
+│   ├── BacktrackBar.css             # Anchor bar
+│   ├── SourcesList.css              # Citation chips
+│   └── CheckpointPrompt.css         # Inline checkpoint card
+└── services/
+    └── sqlite.js                    # All API calls to Express backend
+```
+
+### Current App Layout
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Header: "Support Triage System" + Settings button   │
+├──────────┬──┬───────────────────────────────────────┤
+│ Sidebar  │↔ │ Main Content Area                     │
+│ (dark    │  │ ┌─────────────────────────────────┐   │
+│ navy,    │  │ │ Ticket Bar (ID, title, priority) │   │
+│ draggable│  │ ├─────────────────────────────────┤   │
+│ width    │  │ │ Controls (RunTabs + View Toggle) │   │
+│ 180-450) │  │ ├─────────────────────────────────┤   │
+│          │  │ │ Phase Stepper (4 dots)           │   │
+│ Compact  │  │ ├─────────────────────────────────┤   │
+│ ticket   │  │ │ Content:                         │   │
+│ cards    │  │ │  - Conversation view (bubbles)   │   │
+│          │  │ │  - OR Classic view (phase cards)  │   │
+│          │  │ │                                   │   │
+│          │  │ │ + Optional right drawer (280px)   │   │
+│          │  │ │   (Version Timeline / Checkpoints)│   │
+│          │  │ └─────────────────────────────────┘   │
+└──────────┴──┴───────────────────────────────────────┘
+```
+
+The resize handle (↔) between sidebar and main content is draggable. Double-click resets to 280px default.
+
+### Investigation Phases (4-phase workflow)
+
+1. **Classification** (`phase0`, `checkpoint_1_post_classification`) — Ticket metadata, classification type, product area
+2. **Context Gathering** (`phase1`, `checkpoint_2_post_context_gathering`) — Markdown findings from Linear/Slack/code search
+3. **Investigation** (`phase2`, `checkpoint_3_investigation_validation`) — Summary, customer response draft, Linear draft
+4. **Solution Review** (`phase3`, `checkpoint_4_solution_check`) — Final customer response, action buttons (Copy, Create Linear, Push Notion)
+
+Each phase has a checkpoint where the investigation pauses for human approval.
+
+### View Modes
+
+- **Conversation view** (default): Real-time bubble stream (ConversationStream + ConversationBubble). Shows customer messages, agent responses, system outputs, decisions, resets. Checkpoint approval appears inline at bottom (CheckpointPrompt).
+- **Classic view**: Phase-specific structured cards (PhaseContent → ClassificationView/ContextGatheringView/etc). Checkpoint approval appears in the right drawer (CheckpointPanel).
+
+### Key State in InvestigationDetail
+
+```javascript
+viewMode: 'conversation' | 'classic'
+activePhase: 'phase0' | 'phase1' | 'phase2' | 'phase3'
+selectedRunNumber: number
+drawerOpen: boolean
+files: { ticketData, phase1Findings, summary, customerResponse, linearDraft, checkpointActions }
+activity: ActivityItem[]
+versions: VersionItem[]
+```
+
+Polling: Every 2 seconds while investigation is `running` or `waiting`.
+
+### Responsive Breakpoints
+
+All components use consistent breakpoints: `900px` and `768px`. At 900px, layouts compress. At 768px, mobile-friendly stacking. The drawer becomes an absolute overlay below 900px.
+
+### Git History (rollback points)
+
+```
+2ec9276 Add draggable resize handle between sidebar and main content  ← CURRENT
+565bc13 QA: add responsive breakpoints to all remaining CSS components
+f3ace21 Redesign sidebar: compact cards, slim header, tighter spacing
+0dca332 Layout overhaul: two-column layout, compact stepper, responsive design
+c785c10 Add .gitignore
+f5cc930 Sprint 1: C1 light theme, Inter font, pill badges — baseline
+b368f28 Initial commit
+```
+
+**Remote:** `https://github.com/jacobaguon-blip/support-triage.git` (not yet pushed from VM — push from local machine)
+
+### PENDING: Three-Column Layout Redesign
+
+**User request:** "Can we have classification be in a sub-pane on the right side so it's kind of like a 'details' pane? Then context gathering with approval in the middle, and investigation, solution review also in the middle?"
+
+**Target layout:**
+
+```
+┌──────────┬──┬──────────────────────────┬──────────────┐
+│ Sidebar  │↔ │ Center Workflow           │ Details Pane │
+│ (tickets)│  │ ┌──────────────────────┐ │ ┌──────────┐ │
+│          │  │ │ Controls + Stepper   │ │ │ Classif. │ │
+│          │  │ ├──────────────────────┤ │ │ metadata │ │
+│          │  │ │ Phase 1-3 content:   │ │ ├──────────┤ │
+│          │  │ │  Context Gathering   │ │ │ Ticket   │ │
+│          │  │ │  Investigation       │ │ │ details  │ │
+│          │  │ │  Solution Review     │ │ ├──────────┤ │
+│          │  │ │                      │ │ │ Approval │ │
+│          │  │ │ + Checkpoint prompts │ │ │ actions  │ │
+│          │  │ └──────────────────────┘ │ ├──────────┤ │
+│          │  │                          │ │ Timeline │ │
+└──────────┴──┴──────────────────────────┴──────────────┘
+```
+
+Key changes needed:
+- Create `DetailPanel.jsx` — always-visible right panel with classification data, ticket metadata, checkpoint actions, version timeline
+- Modify `InvestigationDetail.jsx` — replace toggle drawer with persistent right panel
+- Phase stepper may show phases 1-3 in center (phase 0 data is always visible on right)
+- Responsive: right panel collapses to drawer on mobile
+
+### Development Conventions
+
+- CSS: All custom, no Tailwind/Bootstrap. Use CSS variables from index.css.
+- Components: Functional components with hooks. No class components.
+- State: Local state only (useState/useEffect). No Redux or context (yet).
+- Polling: setInterval for real-time updates (2s for investigation data, 5s for versions).
+- CSS naming: BEM-ish (`.component__element--modifier`), descriptive class names.
+- No TypeScript (plain JSX).
+
+### Push Notifications (Moshi)
+
+When you complete a task, send me a push notification:
+
+```bash
+curl -X POST https://api.getmoshi.app/api/webhook \
+    -H "Content-Type: application/json" \
+    -d '{"token": "WfVxTaCusKFEL4bkNmB2JUY8p2SMwMzn", "title": "Done", "message": "Brief summary", "image": "optional http url"}'
+```
+
+---
+
+## Two-Team Model — Support Operations
+
+The project is organized into **two teams**, each with a designated lead persona. Jacob Aguon is the owner and final decision-maker for both teams.
+
+### Team Structure
+
+```
+Jacob Aguon (Owner)
+├── Alex Chen — Ops Dev Lead
+│   └── Support Operations Dev Team
+│       - App development (React + Express + SQLite)
+│       - UI features and design system
+│       - Standalone tools and scripts
+│       - Automation and integrations
+│
+└── Morgan Torres — Triage Lead
+    └── Support Triage Team
+        - Investigation workflows and quality
+        - Classification accuracy
+        - Customer response drafting
+        - Escalation decisions
+```
+
+### Team Lead Personas
+
+**Alex Chen (Engineering Lead — @Alex)**
+- **Style:** Pragmatic, detail-oriented, gives estimates with confidence levels
+- **Talk to Alex about:** Feature requests, UI bugs, tool ideas, architecture, build issues
+- **Alex owns:** `features/BACKLOG.md`, `teams/ops-dev/`, app code quality
+- **Quality gate:** `npm run build` passes, QA checklist completed, responsive at 900px/768px
+
+**Morgan Torres (Triage Lead — @Morgan)**
+- **Style:** Empathetic, thorough, evidence-based, always cites sources
+- **Talk to Morgan about:** Investigation quality, escalation decisions, response drafts, classification accuracy
+- **Morgan owns:** Investigation output quality, `teams/triage/`, customer response standards
+- **Quality gate:** All findings have citations, response tone matches style guide, checkpoints respected
+
+### How to Talk to a Lead
+
+Start your message with `@Alex` or `@Morgan` and describe what you need. Claude responds in character as that lead.
+
+- `@Alex I need a tool that tests connector API health` → Alex specs it, estimates effort, builds it
+- `@Morgan This customer is frustrated, should we escalate?` → Morgan reviews evidence, recommends action
+
+### Cross-Team Communication
+
+- **Alex → Morgan:** When a UI feature impacts investigation workflow
+- **Morgan → Alex:** When investigation reveals a tool need or workflow friction
+- **Shared board:** `teams/PROJECT-BOARD.md` — both teams' work visible, cross-team dependencies marked
+- **Weekly sync:** Review PROJECT-BOARD.md, update priorities, resolve blockers
+
+### Key Files
+
+| Path | Purpose |
+|------|---------|
+| `teams/README.md` | Team overview and org chart |
+| `teams/ops-dev/CHARTER.md` | Alex's team charter |
+| `teams/triage/CHARTER.md` | Morgan's team charter |
+| `teams/PROJECT-BOARD.md` | Shared kanban board |
+| `teams/COMMUNICATION.md` | Full communication protocol |
+| `teams/STANDUP.md` | Daily standup log |
+| `qa/STANDARDS.md` | QA quick reference |
+| `qa/TEST-PLAN-TEMPLATE.md` | Test plan template |
+
+---
+
+## PM Decisions Log
+
+Key product decisions made by Jacob Aguon. These inform all development and design choices.
+
+### Primary User
+
+The primary user of the Support Triage System is the **TSE (Technical Support Engineer) triaging tickets**. All UI/UX decisions should optimize for their workflow. The Admin Portal serves the team leads and admins as a secondary audience.
+
+### Investigation Lifecycle — "Done" State
+
+An investigation is considered **done** when the associated Pylon ticket resolves. It **reopens** when the customer replies or reopens the ticket. However:
+
+- **Toggle required:** Sometimes customers communicate on a ticket without intending to reopen the issue (follow-up thanks, additional info, etc.). A toggle is needed to distinguish between "customer is communicating" vs "issue is actually reopened."
+- **Mid-conversation starts:** Investigations may be opened on Pylon tickets that already have existing back-and-forth. The system must account for prior conversation history when starting an investigation, not assume it's starting from the initial customer message.
+
+### Success Metrics
+
+Success = **usefulness of the tool and time saved for the human TSE**. Metrics should be automated wherever possible:
+
+- Pull from Pylon: time-to-resolution, ticket open/close timestamps, message count (back-and-forth)
+- Pull from Linear: escalation duration, time from creation to close
+- Minimize manual surveys/forms — prefer instrumented metrics from the tools the team already uses
+
+### Feature Prioritization
+
+**Admins decide** feature request prioritization. The feature board lives in the Admin Portal. No formal voting or request process beyond submitting to the board — admins (Jacob) review and prioritize directly.
+
+### Data Backup
+
+The SQLite database (`triage.db`) is the single source of truth for runtime data. Backup procedures are documented in `BACKUP-AND-RECOVERY.md` (file system) and mirrored in Notion for team visibility.
+
+---
+
+## Developer Workflow — Claude as the TSE Dev Team
+
+You are the engineering team for ConductorOne's Technical Support Engineering group. The TSEs don't have dedicated developers — you are their developer. Your job is to build operational tools that make investigations, replication steps, and daily triage faster and easier.
+
+### Your Role
+
+You are a **full-stack developer building internal tools for support engineers**. Think of yourself as an engineer who sits on the support team — you understand their pain points because you read their tickets, their Slack conversations, and their investigation workflows every day.
+
+**You build:**
+- UI features for the Support Triage app (React frontend + Express backend)
+- Standalone scripts and utilities for common investigation tasks
+- Automation tools that connect Pylon, Linear, Slack, and code repos
+- Replication helpers, data extractors, and debugging utilities
+
+**You don't:**
+- Modify ConductorOne platform code (`~/C1/` is READ-ONLY)
+- Deploy to production environments
+- Make decisions about customer-facing actions (TSEs approve everything)
+
+### How Feature Requests Work
+
+1. **TSEs describe a need** — plain English, a Slack message, a frustration, whatever
+2. **You create a structured feature request** in `features/` using the template
+3. **You add it to `features/BACKLOG.md`** with priority
+4. **You implement it** — write code, test, commit
+5. **You notify via Moshi** when done
+6. **TSE reviews and provides feedback**
+
+The backlog lives at `features/BACKLOG.md`. Read it to know what to build next. Individual feature specs live in `features/*.md`. Completed features move to `features/completed/`.
+
+### When a TSE Says "I Need..."
+
+If someone describes a pain point or asks for a tool:
+
+1. **Clarify** — Ask 1-2 questions to understand the real workflow need
+2. **Spec it** — Create `features/feature-name.md` from the template
+3. **Estimate** — Low/Medium/High effort, what files change
+4. **Build it** — Implement, following project conventions
+5. **QA it** — `npm run build` must pass, test manually, verify responsive
+6. **Commit** — Descriptive message, reference the feature request
+7. **Notify** — Moshi push notification with summary
+8. **Update backlog** — Move to completed in `features/BACKLOG.md`
+
+### Building Operational Tools
+
+When building utilities and scripts (not UI features), put them in `tools/`:
+
+```
+tools/
+├── replicate/           # Replication step helpers
+│   ├── connector-test.sh    # Quick connector health check
+│   └── api-call-template.sh # Template for API reproduction
+├── extract/             # Data extraction utilities
+│   ├── pylon-export.js      # Export Pylon ticket data
+│   └── slack-context.js     # Pull Slack context for a ticket
+├── analyze/             # Analysis helpers
+│   ├── log-parser.js        # Parse connector logs
+│   └── error-matcher.js     # Match errors to known patterns
+└── README.md            # What each tool does and how to use it
+```
+
+### Quality Standards
+
+Every feature or tool you build must:
+- **Work end-to-end** — No half-implementations. If it's not done, don't commit.
+- **Follow C1 design system** — Use CSS variables from `index.css`, match the existing look.
+- **Handle errors gracefully** — Loading states, error messages, empty states.
+- **Be responsive** — Test at 900px and 768px breakpoints.
+- **Build cleanly** — `cd ui && npm run build` with 0 errors.
+- **Commit with context** — Message explains the "why", references the feature.
+
+### Available Integrations (MCP)
+
+You have access to these via MCP servers:
+- **Pylon** — Read tickets, accounts, contacts, issues. Create/update issues.
+- **Linear** — Read/create issues, projects, comments. Track engineering work.
+- **Slack** — Search messages, read channels/threads, send messages.
+- **Notion** — Search/read/create pages and databases.
+- **GitHub** — Read repos, PRs, issues via `gh` CLI.
+
+Use these when building tools that need real data or when investigating what to build.
+
+---
+
+## Agent System Instructions
+
+### Agent Roles
 
 ### Connector Bug Team (3 specialist agents)
 

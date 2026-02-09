@@ -1047,6 +1047,181 @@ app.get('/api/investigations/:id/debounce-status', async (req, res) => {
   }
 })
 
+// ============ ADMIN PORTAL STATS ============
+
+// GET /api/admin/stats — aggregated stats for admin dashboard
+app.get('/api/admin/stats', (req, res) => {
+  try {
+    reloadDB()
+    const totalInvestigations = queryOne('SELECT COUNT(*) as count FROM investigations')?.count || 0
+    const activeInvestigations = queryOne("SELECT COUNT(*) as count FROM investigations WHERE status IN ('running', 'waiting')")?.count || 0
+    const completedInvestigations = queryOne("SELECT COUNT(*) as count FROM investigations WHERE status = 'complete'")?.count || 0
+
+    // Feature requests stats (table may not exist yet)
+    let featureRequestCount = 0
+    let featureRequestsByStatus = {}
+    let featureRequestsByPriority = {}
+    try {
+      ensureFeatureRequestsTable()
+      featureRequestCount = queryOne('SELECT COUNT(*) as count FROM feature_requests')?.count || 0
+      const byStatus = queryAll('SELECT status, COUNT(*) as count FROM feature_requests GROUP BY status')
+      byStatus.forEach(row => { featureRequestsByStatus[row.status] = row.count })
+      const byPriority = queryAll('SELECT priority, COUNT(*) as count FROM feature_requests GROUP BY priority')
+      byPriority.forEach(row => { featureRequestsByPriority[row.priority] = row.count })
+    } catch { /* table doesn't exist yet */ }
+
+    // Investigation breakdown
+    const byStatus = queryAll('SELECT status, COUNT(*) as count FROM investigations GROUP BY status')
+    const investigationsByStatus = {}
+    byStatus.forEach(row => { investigationsByStatus[row.status || 'unknown'] = row.count })
+
+    // Recent activity
+    const recentInvestigations = queryAll('SELECT id, customer_name, status, classification, priority, updated_at FROM investigations ORDER BY updated_at DESC LIMIT 5')
+
+    res.json({
+      investigations: {
+        total: totalInvestigations,
+        active: activeInvestigations,
+        completed: completedInvestigations,
+        byStatus: investigationsByStatus
+      },
+      featureRequests: {
+        total: featureRequestCount,
+        byStatus: featureRequestsByStatus,
+        byPriority: featureRequestsByPriority
+      },
+      recentInvestigations
+    })
+  } catch (error) {
+    console.error('Error loading admin stats:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// ============ FEATURE REQUESTS ============
+
+// Create feature_requests table if needed
+function ensureFeatureRequestsTable() {
+  try {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS feature_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        priority TEXT DEFAULT 'P3',
+        status TEXT DEFAULT 'new',
+        category TEXT DEFAULT 'Other',
+        requester TEXT DEFAULT 'TSE',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+  } catch (err) {
+    // Table already exists
+  }
+}
+
+// GET /api/feature-requests — list all feature requests
+app.get('/api/feature-requests', (req, res) => {
+  try {
+    ensureFeatureRequestsTable()
+    const requests = queryAll('SELECT * FROM feature_requests ORDER BY priority ASC, created_at DESC')
+    res.json(requests)
+  } catch (error) {
+    console.error('Error loading feature requests:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// GET /api/feature-requests/:id — get single feature request
+app.get('/api/feature-requests/:id', (req, res) => {
+  try {
+    ensureFeatureRequestsTable()
+    const request = queryOne('SELECT * FROM feature_requests WHERE id = ?', [parseInt(req.params.id)])
+    if (!request) return res.status(404).json({ error: 'Feature request not found' })
+    res.json(request)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/feature-requests — create new feature request
+app.post('/api/feature-requests', (req, res) => {
+  try {
+    ensureFeatureRequestsTable()
+    const { title, description, priority, status, category, requester } = req.body
+    if (!title || !description) {
+      return res.status(400).json({ error: 'Title and description are required' })
+    }
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+    run(
+      `INSERT INTO feature_requests (title, description, priority, status, category, requester, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        description,
+        priority || 'P3',
+        status || 'new',
+        category || 'Other',
+        requester || 'TSE',
+        timestamp,
+        timestamp
+      ]
+    )
+    const newRequest = queryOne('SELECT * FROM feature_requests ORDER BY id DESC LIMIT 1')
+    res.json(newRequest)
+  } catch (error) {
+    console.error('Error creating feature request:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// PUT /api/feature-requests/:id — update feature request
+app.put('/api/feature-requests/:id', (req, res) => {
+  try {
+    ensureFeatureRequestsTable()
+    const id = parseInt(req.params.id)
+    const existing = queryOne('SELECT * FROM feature_requests WHERE id = ?', [id])
+    if (!existing) return res.status(404).json({ error: 'Feature request not found' })
+
+    const { title, description, priority, status, category, requester } = req.body
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+    run(
+      `UPDATE feature_requests SET
+        title = COALESCE(?, title),
+        description = COALESCE(?, description),
+        priority = COALESCE(?, priority),
+        status = COALESCE(?, status),
+        category = COALESCE(?, category),
+        requester = COALESCE(?, requester),
+        updated_at = ?
+       WHERE id = ?`,
+      [title, description, priority, status, category, requester, timestamp, id]
+    )
+    const updated = queryOne('SELECT * FROM feature_requests WHERE id = ?', [id])
+    res.json(updated)
+  } catch (error) {
+    console.error('Error updating feature request:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// DELETE /api/feature-requests/:id — delete feature request
+app.delete('/api/feature-requests/:id', (req, res) => {
+  try {
+    ensureFeatureRequestsTable()
+    const id = parseInt(req.params.id)
+    const existing = queryOne('SELECT * FROM feature_requests WHERE id = ?', [id])
+    if (!existing) return res.status(404).json({ error: 'Feature request not found' })
+
+    run('DELETE FROM feature_requests WHERE id = ?', [id])
+    res.json({ success: true, message: `Feature request #${id} deleted` })
+  } catch (error) {
+    console.error('Error deleting feature request:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // ============ AUTO-POLLING FOR NEW RESPONSES ============
 
 const POLL_INTERVAL_MS = 60 * 1000 // 60 seconds

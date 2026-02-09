@@ -11,9 +11,11 @@
       "Bash(npm run dev:*)",
       "Bash(./triage-launcher.sh:*)",
       "mcp__pylon__pylon_get_issue",
-      "mcp__pylon__pylon_get_issue_body"
+      "mcp__pylon__pylon_get_issue_body",
+      "Bash(curl:*)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "slack",
     "pylon"

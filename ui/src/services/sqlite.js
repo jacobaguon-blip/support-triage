@@ -195,3 +195,64 @@ export async function getDebounceStatus(ticketId) {
     return { active: false }
   }
 }
+
+// ============ ADMIN PORTAL ============
+
+export async function loadAdminStats() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/stats`)
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+// ============ FEATURE REQUESTS ============
+
+export async function loadFeatureRequests() {
+  try {
+    const res = await fetch(`${API_BASE}/feature-requests`)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+export async function createFeatureRequest(data) {
+  const res = await fetch(`${API_BASE}/feature-requests`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create feature request' }))
+    throw new Error(err.error || 'Failed to create feature request')
+  }
+  return res.json()
+}
+
+export async function updateFeatureRequest(id, data) {
+  const res = await fetch(`${API_BASE}/feature-requests/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to update feature request' }))
+    throw new Error(err.error || 'Failed to update feature request')
+  }
+  return res.json()
+}
+
+export async function deleteFeatureRequest(id) {
+  const res = await fetch(`${API_BASE}/feature-requests/${id}`, {
+    method: 'DELETE'
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete feature request' }))
+    throw new Error(err.error || 'Failed to delete feature request')
+  }
+  return res.json()
+}

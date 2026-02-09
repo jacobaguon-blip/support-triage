@@ -242,6 +242,18 @@ function SettingsPane({ settings, onClose }) {
             </div>
           </div>
         </section>
+
+        {/* Feature Requests — moved to Admin Portal */}
+        <section className="settings-section card">
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Feature requests have moved to the Admin Portal
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              Click the <strong>Admin</strong> button in the header → <strong>Feature Board</strong> tab
+            </p>
+          </div>
+        </section>
       </div>
 
       <div className="settings-footer">
