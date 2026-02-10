@@ -79,3 +79,6 @@ Outbound webhooks for investigation lifecycle events (created, phase_completed, 
 | Sidebar Redesign | 2026-02-08 | Compact cards |
 | Responsive QA | 2026-02-08 | All CSS breakpoints |
 | Draggable Resize Handle | 2026-02-08 | Sidebar ↔ main |
+| MCP Health Check System | 2026-02-09 | Validate MCP services on startup |
+| MCP Credential Manager | 2026-02-09 | Encrypted local storage + auto-config |
+| OAuth Authentication | 2026-02-09 | OAuth 2.0 support for Linear (+ others) |
