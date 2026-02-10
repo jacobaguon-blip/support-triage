@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
+import { homedir, hostname, userInfo } from 'os'
 
 /**
  * MCP Credentials Manager
@@ -26,8 +26,9 @@ function getEncryptionKey() {
   }
 
   // Option B: Machine-specific key (fallback)
-  const { hostname, userInfo } = { hostname: require('os').hostname(), userInfo: require('os').userInfo() }
-  const machineString = `${hostname}-${userInfo.username}-mcp-support-triage`
+  const machineHostname = hostname()
+  const machineUserInfo = userInfo()
+  const machineString = `${machineHostname}-${machineUserInfo.username}-mcp-support-triage`
   return crypto.createHash('sha256').update(machineString).digest()
 }
 
