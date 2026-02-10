@@ -9,20 +9,40 @@ export default function MCPCredentials({ onClose }) {
   const [credentials, setCredentials] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
+  const [authMethod, setAuthMethod] = useState({}) // Track auth method per service
   const [showApiKey, setShowApiKey] = useState({})
   const [formData, setFormData] = useState({ api_key: '', is_enabled: true })
   const [testResults, setTestResults] = useState({})
   const [saving, setSaving] = useState(false)
 
   const services = [
-    { id: 'pylon', name: 'Pylon', description: 'Ticket management and customer support' },
-    { id: 'linear', name: 'Linear', description: 'Issue tracking and project management' },
-    { id: 'slack', name: 'Slack', description: 'Team communication and context search' },
-    { id: 'notion', name: 'Notion', description: 'Documentation and knowledge base' }
+    { id: 'pylon', name: 'Pylon', description: 'Ticket management and customer support', supportsOAuth: false },
+    { id: 'linear', name: 'Linear', description: 'Issue tracking and project management', supportsOAuth: true },
+    { id: 'slack', name: 'Slack', description: 'Team communication and context search', supportsOAuth: false },
+    { id: 'notion', name: 'Notion', description: 'Documentation and knowledge base', supportsOAuth: false }
   ]
 
   useEffect(() => {
     loadCredentials()
+
+    // Check for OAuth callback parameters
+    const urlParams = new URLSearchParams(window.location.search)
+    const oauthSuccess = urlParams.get('oauth_success')
+    const oauthError = urlParams.get('oauth_error')
+    const service = urlParams.get('service')
+
+    if (oauthSuccess && service) {
+      setTestResults({ [service]: { success: true, message: `Successfully connected with ${service} via OAuth!` } })
+      setTimeout(() => setTestResults({}), 5000)
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (oauthError) {
+      const serviceName = service || 'the service'
+      setTestResults({ [serviceName]: { success: false, error: decodeURIComponent(oauthError) } })
+      setTimeout(() => setTestResults({}), 8000)
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [])
 
   async function loadCredentials() {
@@ -124,6 +144,9 @@ export default function MCPCredentials({ onClose }) {
   function startEdit(service) {
     setEditing(service)
     const existing = credentials.find(c => c.service === service)
+    const currentAuthType = existing?.auth_type || 'api_key'
+
+    setAuthMethod({ ...authMethod, [service]: currentAuthType })
     setFormData({
       api_key: '',
       is_enabled: existing ? existing.is_enabled : true
@@ -136,10 +159,20 @@ export default function MCPCredentials({ onClose }) {
     setFormData({ api_key: '', is_enabled: true })
   }
 
+  function handleOAuthConnect(service) {
+    // Redirect to OAuth authorization endpoint
+    window.location.href = `http://localhost:3001/api/oauth/authorize/${service}`
+  }
+
   function getStatus(service) {
     const cred = credentials.find(c => c.service === service.id)
-    if (!cred) return { configured: false, enabled: false }
-    return { configured: true, enabled: cred.is_enabled === 1 }
+    if (!cred) return { configured: false, enabled: false, authType: 'api_key' }
+    return {
+      configured: true,
+      enabled: cred.is_enabled === 1,
+      authType: cred.auth_type || 'api_key',
+      tokenExpiresAt: cred.token_expires_at
+    }
   }
 
   if (loading) {
@@ -187,9 +220,14 @@ export default function MCPCredentials({ onClose }) {
                   </div>
                   <div className="service-status">
                     {status.configured ? (
-                      <span className={`status-badge ${status.enabled ? 'enabled' : 'disabled'}`}>
-                        {status.enabled ? '✓ Enabled' : '○ Disabled'}
-                      </span>
+                      <>
+                        <span className={`status-badge ${status.enabled ? 'enabled' : 'disabled'}`}>
+                          {status.enabled ? '✓ Enabled' : '○ Disabled'}
+                        </span>
+                        {status.authType === 'oauth' && (
+                          <span className="status-badge oauth-badge">OAuth</span>
+                        )}
+                      </>
                     ) : (
                       <span className="status-badge unconfigured">Not Configured</span>
                     )}
@@ -225,25 +263,62 @@ export default function MCPCredentials({ onClose }) {
 
                 {isEditing && (
                   <div className="credential-form">
-                    <div className="form-group">
-                      <label>API Key / Token</label>
-                      <div className="input-with-toggle">
-                        <input
-                          type={showApiKey[service.id] ? 'text' : 'password'}
-                          value={formData.api_key}
-                          onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                          placeholder={`Enter ${service.name} API key...`}
-                          autoFocus
-                        />
+                    {/* Auth method selector - only show if service supports OAuth */}
+                    {service.supportsOAuth && (
+                      <div className="auth-method-selector">
                         <button
-                          onClick={() => setShowApiKey({ ...showApiKey, [service.id]: !showApiKey[service.id] })}
-                          className="btn-toggle-visibility"
-                          title={showApiKey[service.id] ? 'Hide' : 'Show'}
+                          className={`auth-method-btn ${(authMethod[service.id] || 'api_key') === 'api_key' ? 'active' : ''}`}
+                          onClick={() => setAuthMethod({ ...authMethod, [service.id]: 'api_key' })}
                         >
-                          {showApiKey[service.id] ? '👁️' : '👁️‍🗨️'}
+                          🔑 API Key
+                        </button>
+                        <button
+                          className={`auth-method-btn ${(authMethod[service.id] || 'api_key') === 'oauth' ? 'active' : ''}`}
+                          onClick={() => setAuthMethod({ ...authMethod, [service.id]: 'oauth' })}
+                        >
+                          🔐 OAuth
                         </button>
                       </div>
-                    </div>
+                    )}
+
+                    {/* API Key input */}
+                    {(!service.supportsOAuth || (authMethod[service.id] || 'api_key') === 'api_key') && (
+                      <div className="form-group">
+                        <label>API Key / Token</label>
+                        <div className="input-with-toggle">
+                          <input
+                            type={showApiKey[service.id] ? 'text' : 'password'}
+                            value={formData.api_key}
+                            onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                            placeholder={`Enter ${service.name} API key...`}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => setShowApiKey({ ...showApiKey, [service.id]: !showApiKey[service.id] })}
+                            className="btn-toggle-visibility"
+                            title={showApiKey[service.id] ? 'Hide' : 'Show'}
+                          >
+                            {showApiKey[service.id] ? '👁️' : '👁️‍🗨️'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* OAuth connect button */}
+                    {service.supportsOAuth && (authMethod[service.id] || 'api_key') === 'oauth' && (
+                      <div className="oauth-section">
+                        <p className="oauth-info">
+                          Click the button below to authenticate with {service.name} using OAuth.
+                          You'll be redirected to {service.name}'s authorization page.
+                        </p>
+                        <button
+                          onClick={() => handleOAuthConnect(service.id)}
+                          className="btn-oauth-connect"
+                        >
+                          Connect with {service.name}
+                        </button>
+                      </div>
+                    )}
 
                     {result && (
                       <div className={`test-result ${result.success ? 'success' : 'error'}`}>
@@ -251,17 +326,29 @@ export default function MCPCredentials({ onClose }) {
                       </div>
                     )}
 
-                    <div className="form-actions">
-                      <button onClick={() => handleTest(service.id)} className="btn-test" disabled={!formData.api_key}>
-                        Test Connection
-                      </button>
-                      <button onClick={() => handleSave(service.id)} className="btn-save" disabled={saving || !formData.api_key}>
-                        {saving ? 'Saving...' : 'Save'}
-                      </button>
-                      <button onClick={cancelEdit} className="btn-cancel">
-                        Cancel
-                      </button>
-                    </div>
+                    {/* Form actions - only show for API key method */}
+                    {(!service.supportsOAuth || (authMethod[service.id] || 'api_key') === 'api_key') && (
+                      <div className="form-actions">
+                        <button onClick={() => handleTest(service.id)} className="btn-test" disabled={!formData.api_key}>
+                          Test Connection
+                        </button>
+                        <button onClick={() => handleSave(service.id)} className="btn-save" disabled={saving || !formData.api_key}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button onClick={cancelEdit} className="btn-cancel">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Cancel button for OAuth */}
+                    {service.supportsOAuth && (authMethod[service.id] || 'api_key') === 'oauth' && (
+                      <div className="form-actions">
+                        <button onClick={cancelEdit} className="btn-cancel">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

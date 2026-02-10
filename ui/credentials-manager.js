@@ -90,7 +90,31 @@ export function generateMCPConfig(credentials) {
     if (!cred.is_enabled) continue
 
     try {
-      const apiKey = decrypt(cred.encrypted_api_key)
+      let token
+
+      // Check auth type - OAuth or API key
+      if (cred.auth_type === 'oauth') {
+        // Use OAuth access token
+        if (!cred.encrypted_access_token) {
+          console.warn(`[MCP Config] ${cred.service} configured for OAuth but no access token found`)
+          continue
+        }
+        token = decrypt(cred.encrypted_access_token)
+
+        // Check if token is expired
+        if (cred.token_expires_at && new Date(cred.token_expires_at) < new Date()) {
+          console.warn(`[MCP Config] Token for ${cred.service} is expired. Auto-refresh will attempt to renew.`)
+          // Token refresh will be handled by background job in server.js
+        }
+      } else {
+        // Use API key (default)
+        if (!cred.encrypted_api_key) {
+          console.warn(`[MCP Config] ${cred.service} has no API key configured`)
+          continue
+        }
+        token = decrypt(cred.encrypted_api_key)
+      }
+
       const config = cred.encrypted_config ? JSON.parse(decrypt(cred.encrypted_config)) : {}
 
       switch (cred.service) {
@@ -99,7 +123,7 @@ export function generateMCPConfig(credentials) {
             command: 'npx',
             args: ['-y', '@pylon/mcp-server'],
             env: {
-              PYLON_API_KEY: apiKey,
+              PYLON_API_KEY: token,
               ...config.env
             }
           }
@@ -110,7 +134,7 @@ export function generateMCPConfig(credentials) {
             command: 'npx',
             args: ['-y', '@linear/mcp-server'],
             env: {
-              LINEAR_API_KEY: apiKey,
+              LINEAR_API_KEY: token, // Works for both OAuth access token and API key
               ...config.env
             }
           }
@@ -121,7 +145,7 @@ export function generateMCPConfig(credentials) {
             command: 'npx',
             args: ['-y', '@slack/mcp-server'],
             env: {
-              SLACK_BOT_TOKEN: apiKey,
+              SLACK_BOT_TOKEN: token,
               ...config.env
             }
           }
@@ -132,7 +156,7 @@ export function generateMCPConfig(credentials) {
             command: 'npx',
             args: ['-y', '@notionhq/mcp-server'],
             env: {
-              NOTION_API_KEY: apiKey,
+              NOTION_API_KEY: token,
               ...config.env
             }
           }

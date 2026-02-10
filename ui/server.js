@@ -11,6 +11,8 @@ import { runPhase0, runPhase1, runPhase2, populateFromTicketData } from './inves
 import { createSnapshot, restoreToVersion, getVersions, getVersionDiff } from './version-manager.js'
 import { syncTicketResponses, checkForNewResponses } from './response-sync.js'
 import { encrypt, decrypt, generateMCPConfig, writeMCPConfig, maskApiKey, testConnection } from './credentials-manager.js'
+import { OAUTH_CONFIGS, supportsOAuth } from './oauth-config.js'
+import crypto from 'crypto'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -204,6 +206,21 @@ function migrateExistingDB() {
 
   // Create new tables (IF NOT EXISTS is safe)
   createAllTables()
+
+  // Add OAuth columns to mcp_credentials table
+  const oauthColumns = {
+    'auth_type': "TEXT DEFAULT 'api_key'",
+    'encrypted_access_token': 'TEXT',
+    'encrypted_refresh_token': 'TEXT',
+    'token_expires_at': 'DATETIME',
+    'oauth_state': 'TEXT'
+  }
+  for (const [col, type] of Object.entries(oauthColumns)) {
+    try {
+      db.run(`ALTER TABLE mcp_credentials ADD COLUMN ${col} ${type}`)
+      console.log(`[Migration] Added ${col} to mcp_credentials`)
+    } catch { /* column already exists */ }
+  }
 
   // Bootstrap investigation_runs for existing investigations that don't have runs yet
   try {
@@ -1446,13 +1463,15 @@ app.delete('/api/feature-requests/:id', (req, res) => {
 // GET /api/credentials/mcp — list all MCP credentials (masked)
 app.get('/api/credentials/mcp', (req, res) => {
   try {
-    const credentials = queryAll('SELECT id, service, is_enabled, last_validated_at, created_at, updated_at FROM mcp_credentials ORDER BY service ASC')
+    const credentials = queryAll('SELECT id, service, auth_type, is_enabled, last_validated_at, token_expires_at, created_at, updated_at FROM mcp_credentials ORDER BY service ASC')
 
     // Mask API keys for display
     const masked = credentials.map(cred => ({
       ...cred,
-      api_key_preview: '••••••••', // Fully masked in list view
-      is_configured: true
+      auth_type: cred.auth_type || 'api_key',
+      api_key_preview: cred.auth_type === 'oauth' ? 'OAuth Connected' : '••••••••',
+      is_configured: true,
+      supportsOAuth: supportsOAuth(cred.service)
     }))
 
     res.json(masked)
@@ -1469,20 +1488,30 @@ app.get('/api/credentials/mcp/:service', (req, res) => {
     const cred = queryOne('SELECT * FROM mcp_credentials WHERE service = ?', [service])
 
     if (!cred) {
-      return res.json({ service, configured: false })
+      return res.json({ service, configured: false, supportsOAuth: supportsOAuth(service) })
     }
 
-    // Decrypt and mask the API key
-    const decryptedKey = decrypt(cred.encrypted_api_key)
-    const maskedKey = maskApiKey(decryptedKey)
+    const authType = cred.auth_type || 'api_key'
+
+    // Prepare response based on auth type
+    let preview = ''
+    if (authType === 'oauth') {
+      preview = 'OAuth Connected'
+    } else if (cred.encrypted_api_key) {
+      const decryptedKey = decrypt(cred.encrypted_api_key)
+      preview = maskApiKey(decryptedKey)
+    }
 
     res.json({
       id: cred.id,
       service: cred.service,
-      api_key_preview: maskedKey,
+      auth_type: authType,
+      api_key_preview: preview,
       is_enabled: cred.is_enabled,
       last_validated_at: cred.last_validated_at,
-      configured: true
+      token_expires_at: cred.token_expires_at,
+      configured: true,
+      supportsOAuth: supportsOAuth(service)
     })
   } catch (error) {
     console.error('Error loading credential:', error)
@@ -1635,6 +1664,280 @@ app.patch('/api/credentials/mcp/:service/toggle', (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+// ============ OAUTH FLOW ENDPOINTS ============
+
+// GET /api/oauth/authorize/:service — initiate OAuth flow
+app.get('/api/oauth/authorize/:service', (req, res) => {
+  try {
+    const service = req.params.service
+    const config = OAUTH_CONFIGS[service]
+
+    if (!config) {
+      return res.status(400).send(`OAuth not supported for service: ${service}`)
+    }
+
+    // Generate random state for CSRF protection
+    const state = crypto.randomBytes(16).toString('hex')
+
+    // Store state temporarily (will be checked in callback)
+    // Create or update credential record with state
+    const existing = queryOne('SELECT id FROM mcp_credentials WHERE service = ?', [service])
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+
+    if (existing) {
+      run('UPDATE mcp_credentials SET oauth_state = ?, updated_at = ? WHERE service = ?', [state, timestamp, service])
+    } else {
+      // Create placeholder record for OAuth flow
+      run(
+        `INSERT INTO mcp_credentials (service, encrypted_api_key, oauth_state, is_enabled, created_at, updated_at)
+         VALUES (?, '', ?, 0, ?, ?)`,
+        [service, state, timestamp, timestamp]
+      )
+    }
+
+    // Get OAuth credentials from environment
+    const clientId = process.env[`${service.toUpperCase()}_CLIENT_ID`]
+    if (!clientId) {
+      return res.status(500).send(`Missing ${service.toUpperCase()}_CLIENT_ID environment variable`)
+    }
+
+    // Build authorization URL
+    const authUrl = new URL(config.authorizeUrl)
+    authUrl.searchParams.set('client_id', clientId)
+    authUrl.searchParams.set('redirect_uri', config.redirectUri)
+    authUrl.searchParams.set('scope', config.scope)
+    authUrl.searchParams.set('state', state)
+    authUrl.searchParams.set('response_type', 'code')
+
+    console.log(`[OAuth] Redirecting to ${service} authorization page`)
+    res.redirect(authUrl.toString())
+  } catch (error) {
+    console.error('[OAuth] Authorization error:', error)
+    res.status(500).send(`OAuth authorization failed: ${error.message}`)
+  }
+})
+
+// GET /api/oauth/callback/:service — handle OAuth callback
+app.get('/api/oauth/callback/:service', async (req, res) => {
+  try {
+    const { code, state, error, error_description } = req.query
+    const service = req.params.service
+
+    // Check for OAuth errors
+    if (error) {
+      console.error(`[OAuth] ${service} authorization error:`, error, error_description)
+      return res.redirect(`http://localhost:3000/?oauth_error=${encodeURIComponent(error_description || error)}`)
+    }
+
+    if (!code || !state) {
+      return res.status(400).send('Missing code or state parameter')
+    }
+
+    // Verify state (CSRF protection)
+    const stored = queryOne('SELECT oauth_state FROM mcp_credentials WHERE service = ?', [service])
+    if (!stored || stored.oauth_state !== state) {
+      console.error('[OAuth] State mismatch - possible CSRF attack')
+      return res.status(400).send('Invalid state parameter')
+    }
+
+    const config = OAUTH_CONFIGS[service]
+    if (!config) {
+      return res.status(400).send(`OAuth not supported for service: ${service}`)
+    }
+
+    // Get OAuth credentials from environment
+    const clientId = process.env[`${service.toUpperCase()}_CLIENT_ID`]
+    const clientSecret = process.env[`${service.toUpperCase()}_CLIENT_SECRET`]
+
+    if (!clientId || !clientSecret) {
+      return res.status(500).send(`Missing OAuth credentials for ${service}`)
+    }
+
+    // Exchange code for tokens
+    console.log(`[OAuth] Exchanging authorization code for access token (${service})`)
+    const tokenResponse = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: config.redirectUri,
+        code
+      })
+    })
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('[OAuth] Token exchange failed:', errorText)
+      return res.redirect(`http://localhost:3000/?oauth_error=${encodeURIComponent('Token exchange failed')}`)
+    }
+
+    const tokens = await tokenResponse.json()
+
+    if (!tokens.access_token) {
+      console.error('[OAuth] No access token in response:', tokens)
+      return res.redirect(`http://localhost:3000/?oauth_error=${encodeURIComponent('No access token received')}`)
+    }
+
+    // Encrypt and store tokens
+    const encryptedAccess = encrypt(tokens.access_token)
+    const encryptedRefresh = tokens.refresh_token ? encrypt(tokens.refresh_token) : null
+    const expiresAt = tokens.expires_in
+      ? new Date(Date.now() + tokens.expires_in * 1000).toISOString().replace('T', ' ').split('.')[0]
+      : null
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+
+    // Update credential record
+    run(
+      `UPDATE mcp_credentials SET
+        auth_type = 'oauth',
+        encrypted_access_token = ?,
+        encrypted_refresh_token = ?,
+        token_expires_at = ?,
+        oauth_state = NULL,
+        is_enabled = 1,
+        last_validated_at = ?,
+        updated_at = ?
+       WHERE service = ?`,
+      [encryptedAccess, encryptedRefresh, expiresAt, timestamp, timestamp, service]
+    )
+
+    console.log(`[OAuth] Successfully stored ${service} OAuth tokens`)
+
+    // Regenerate MCP config
+    try {
+      const allCredentials = queryAll('SELECT * FROM mcp_credentials')
+      const mcpConfig = generateMCPConfig(allCredentials)
+      writeMCPConfig(mcpConfig)
+      console.log(`[OAuth] Updated MCP config for ${service}`)
+    } catch (configErr) {
+      console.error('[OAuth] Error regenerating MCP config:', configErr.message)
+    }
+
+    // Redirect back to UI with success message
+    res.redirect(`http://localhost:3000/?oauth_success=true&service=${service}`)
+  } catch (error) {
+    console.error('[OAuth] Callback error:', error)
+    res.redirect(`http://localhost:3000/?oauth_error=${encodeURIComponent(error.message)}`)
+  }
+})
+
+// POST /api/oauth/refresh/:service — manually refresh OAuth token
+app.post('/api/oauth/refresh/:service', async (req, res) => {
+  try {
+    const service = req.params.service
+    const result = await refreshOAuthToken(service)
+
+    if (result.success) {
+      res.json(result)
+    } else {
+      res.status(500).json(result)
+    }
+  } catch (error) {
+    console.error('[OAuth] Refresh error:', error)
+    res.status(500).json({ success: false, error: error.message })
+  }
+})
+
+// Helper function to refresh OAuth tokens
+async function refreshOAuthToken(service) {
+  try {
+    const cred = queryOne('SELECT * FROM mcp_credentials WHERE service = ?', [service])
+
+    if (!cred) {
+      return { success: false, error: 'Credential not found' }
+    }
+
+    if (cred.auth_type !== 'oauth') {
+      return { success: false, error: 'Not an OAuth credential' }
+    }
+
+    if (!cred.encrypted_refresh_token) {
+      return { success: false, error: 'No refresh token available. Re-authorization required.' }
+    }
+
+    const config = OAUTH_CONFIGS[service]
+    if (!config) {
+      return { success: false, error: `OAuth not supported for service: ${service}` }
+    }
+
+    const refreshToken = decrypt(cred.encrypted_refresh_token)
+    const clientId = process.env[`${service.toUpperCase()}_CLIENT_ID`]
+    const clientSecret = process.env[`${service.toUpperCase()}_CLIENT_SECRET`]
+
+    if (!clientId || !clientSecret) {
+      return { success: false, error: `Missing OAuth credentials for ${service}` }
+    }
+
+    console.log(`[OAuth] Refreshing access token for ${service}`)
+
+    const tokenResponse = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        grant_type: 'refresh_token',
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken
+      })
+    })
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error(`[OAuth] Token refresh failed for ${service}:`, errorText)
+      return { success: false, error: 'Token refresh failed. Re-authorization may be required.' }
+    }
+
+    const tokens = await tokenResponse.json()
+
+    if (!tokens.access_token) {
+      return { success: false, error: 'No access token in refresh response' }
+    }
+
+    // Update tokens
+    const encryptedAccess = encrypt(tokens.access_token)
+    const encryptedRefresh = tokens.refresh_token ? encrypt(tokens.refresh_token) : cred.encrypted_refresh_token
+    const expiresAt = tokens.expires_in
+      ? new Date(Date.now() + tokens.expires_in * 1000).toISOString().replace('T', ' ').split('.')[0]
+      : null
+    const timestamp = new Date().toISOString().replace('T', ' ').split('.')[0]
+
+    run(
+      `UPDATE mcp_credentials SET
+        encrypted_access_token = ?,
+        encrypted_refresh_token = ?,
+        token_expires_at = ?,
+        last_validated_at = ?,
+        updated_at = ?
+       WHERE service = ?`,
+      [encryptedAccess, encryptedRefresh, expiresAt, timestamp, timestamp, service]
+    )
+
+    console.log(`[OAuth] Successfully refreshed token for ${service}`)
+
+    // Regenerate MCP config with new token
+    try {
+      const allCredentials = queryAll('SELECT * FROM mcp_credentials')
+      const mcpConfig = generateMCPConfig(allCredentials)
+      writeMCPConfig(mcpConfig)
+    } catch (configErr) {
+      console.error('[OAuth] Error regenerating MCP config:', configErr.message)
+    }
+
+    return { success: true, message: 'Token refreshed successfully', expiresAt }
+  } catch (error) {
+    console.error(`[OAuth] Error refreshing token for ${service}:`, error)
+    return { success: false, error: error.message }
+  }
+}
 
 // ============ BUG REPORTS (for Claude Code agent) ============
 
@@ -1870,7 +2173,34 @@ initDB().then(() => {
 
     // Start auto-polling for new Pylon responses
     autoPollingInterval = setInterval(pollForNewResponses, POLL_INTERVAL_MS)
-    console.log(`  Auto-polling for new responses every ${POLL_INTERVAL_MS / 1000}s\n`)
+    console.log(`  Auto-polling for new responses every ${POLL_INTERVAL_MS / 1000}s`)
+
+    // Start auto-refresh for expiring OAuth tokens
+    const OAUTH_REFRESH_INTERVAL = 60 * 60 * 1000 // Check every hour
+    setInterval(async () => {
+      try {
+        const expiringSoon = queryAll(`
+          SELECT service FROM mcp_credentials
+          WHERE auth_type = 'oauth'
+          AND is_enabled = 1
+          AND token_expires_at < datetime('now', '+1 hour')
+          AND encrypted_refresh_token IS NOT NULL
+        `)
+
+        for (const cred of expiringSoon) {
+          console.log(`[OAuth] Auto-refreshing token for ${cred.service} (expires soon)`)
+          const result = await refreshOAuthToken(cred.service)
+          if (result.success) {
+            console.log(`[OAuth] Successfully refreshed ${cred.service}`)
+          } else {
+            console.error(`[OAuth] Failed to refresh ${cred.service}:`, result.error)
+          }
+        }
+      } catch (error) {
+        console.error('[OAuth] Error in auto-refresh job:', error.message)
+      }
+    }, OAUTH_REFRESH_INTERVAL)
+    console.log(`  OAuth token auto-refresh enabled (checks every hour)\n`)
   })
 }).catch(err => {
   console.error('Failed to initialize database:', err)
