@@ -166,6 +166,6 @@ ui/src/styles/MCPCredentials.css      (modified)
 
 ---
 
-**Deployed:** Not yet (pending QA)
-**QA Status:** Awaiting test
+**Deployed:** Ready for deployment
+**QA Status:** ✅ PASSED (2026-02-09) — See qa/QA-REPORT-OAuth-Feature.md
 **Doc Status:** Complete
