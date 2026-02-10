@@ -204,13 +204,30 @@ Key changes needed:
 
 ### Push Notifications (Moshi)
 
-When you complete a task, send me a push notification:
+Send push notifications in these scenarios:
 
+**1. When a task is completed:**
 ```bash
 curl -X POST https://api.getmoshi.app/api/webhook \
     -H "Content-Type: application/json" \
-    -d '{"token": "WfVxTaCusKFEL4bkNmB2JUY8p2SMwMzn", "title": "Done", "message": "Brief summary", "image": "optional http url"}'
+    -d '{"token": "WfVxTaCusKFEL4bkNmB2JUY8p2SMwMzn", "title": "Task Complete", "message": "Brief summary of what was done"}'
 ```
+
+**2. When permissions/approval are needed:**
+```bash
+curl -X POST https://api.getmoshi.app/api/webhook \
+    -H "Content-Type: application/json" \
+    -d '{"token": "WfVxTaCusKFEL4bkNmB2JUY8p2SMwMzn", "title": "Action Required", "message": "Waiting for approval: [what needs approval]"}'
+```
+
+**Examples of when to notify for permissions:**
+- Waiting for tool execution approval (Bash, Write, Edit)
+- Blocked at a checkpoint needing human decision
+- Need user input via AskUserQuestion
+- Waiting for QA review/sign-off
+- Any situation where you're blocked and can't proceed without human action
+
+**Don't spam:** Only send one notification per blocking event, not repeated reminders.
 
 ---
 
@@ -351,10 +368,17 @@ If someone describes a pain point or asks for a tool:
 2. **Spec it** — Create `features/feature-name.md` from the template
 3. **Estimate** — Low/Medium/High effort, what files change
 4. **Build it** — Implement, following project conventions
-5. **QA it** — `npm run build` must pass, test manually, verify responsive
+5. **QA it (MANDATORY)** — Complete `qa/PRE-COMMIT-CHECKLIST.md`:
+   - `npm run build` must pass with 0 errors
+   - Test in browser — must render without white screen
+   - Check F12 console — must have 0 errors
+   - Test at 900px and 768px breakpoints
+   - Verify all user flows work end-to-end
 6. **Commit** — Descriptive message, reference the feature request
 7. **Notify** — Moshi push notification with summary
 8. **Update backlog** — Move to completed in `features/BACKLOG.md`
+
+**CRITICAL:** Step 5 is non-negotiable. No code should be committed without completing the QA checklist. See `qa/STANDARDS.md` for details.
 
 ### Building Operational Tools
 
@@ -376,13 +400,18 @@ tools/
 
 ### Quality Standards
 
+**MANDATORY:** Complete `qa/PRE-COMMIT-CHECKLIST.md` before every commit.
+
 Every feature or tool you build must:
 - **Work end-to-end** — No half-implementations. If it's not done, don't commit.
+- **Pass build gate** — `cd ui && npm run build` with 0 errors.
+- **Pass render gate** — Open in browser, no white screen, no console errors.
+- **Pass responsive gate** — Test at 1920px, 900px, and 768px breakpoints.
 - **Follow C1 design system** — Use CSS variables from `index.css`, match the existing look.
 - **Handle errors gracefully** — Loading states, error messages, empty states.
-- **Be responsive** — Test at 900px and 768px breakpoints.
-- **Build cleanly** — `cd ui && npm run build` with 0 errors.
 - **Commit with context** — Message explains the "why", references the feature.
+
+**See `qa/STANDARDS.md` for the complete QA reference guide.**
 
 ### Available Integrations (MCP)
 

@@ -272,7 +272,6 @@ export default function MCPCredentials({ onClose }) {
         <div className="credentials-footer">
           <div className="encryption-info">
             <strong>🔒 Security:</strong> All credentials are encrypted using AES-256-GCM before storage.
-            {process.env.MCP_ENCRYPTION_KEY ? ' Using environment key.' : ' Using machine-specific key.'}
           </div>
         </div>
       </div>
