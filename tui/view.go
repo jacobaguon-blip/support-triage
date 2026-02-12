@@ -237,10 +237,44 @@ func (m model) renderTabContent(width, height int) string {
 	}
 }
 
+func (m model) renderCheckpointBanner(inv *Investigation, width int) string {
+	if inv.Status != "waiting" || inv.CurrentCheckpoint == "" {
+		return ""
+	}
+
+	// Map checkpoint to human-readable name
+	checkpointNames := map[string]string{
+		"checkpoint_1_post_classification":      "Classification Review",
+		"checkpoint_2_post_context_gathering":    "Context Gathering Review",
+		"checkpoint_3_investigation_validation":  "Investigation Validation",
+		"checkpoint_4_solution_check":            "Solution Review",
+	}
+	name := checkpointNames[inv.CurrentCheckpoint]
+	if name == "" {
+		name = inv.CurrentCheckpoint
+	}
+
+	bannerStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#F59E0B")).
+		Foreground(lipgloss.Color("#000000")).
+		Bold(true).
+		Padding(0, 2).
+		Width(width - 4)
+
+	return bannerStyle.Render(fmt.Sprintf("⏸ Checkpoint: %s — Press 'a' to approve", name))
+}
+
 func (m model) renderAgentView(width, height int) string {
 	inv := m.getSelectedInvestigation()
 	if inv == nil {
 		return ""
+	}
+
+	// Checkpoint banner
+	checkpointBanner := m.renderCheckpointBanner(inv, width)
+	bannerHeight := 0
+	if checkpointBanner != "" {
+		bannerHeight = 2
 	}
 
 	agentName := m.getActiveAgentName()
@@ -256,10 +290,14 @@ func (m model) renderAgentView(width, height int) string {
 				fmt.Sprintf("Agent %s has not started yet\n\nThis agent will begin when the investigation checkpoint is approved.", agentName),
 			)
 		}
-		return contentPanelStyle.
+		content := contentPanelStyle.
 			Width(width - 4).
-			Height(height - 2).
+			Height(height - 2 - bannerHeight).
 			Render(placeholder)
+		if checkpointBanner != "" {
+			return lipgloss.JoinVertical(lipgloss.Left, checkpointBanner, content)
+		}
+		return content
 	}
 
 	// Agent status header

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+const apiBase = "http://localhost:3001"
 
 const cliPath = "/Users/jacobaguon/support-triage/bin/triage"
 
@@ -214,13 +217,20 @@ func parseMarkdownFindings(content string) []Finding {
 	return findings
 }
 
-// Approve checkpoint
-func approveCheckpointCmd(investigationID int) tea.Cmd {
+// Approve checkpoint via Express API
+func approveCheckpointCmd(investigationID int, checkpoint string) tea.Cmd {
 	return func() tea.Msg {
-		cmd := exec.Command(cliPath, "approve", strconv.Itoa(investigationID))
-		err := cmd.Run()
+		body := fmt.Sprintf(`{"action":"confirm","checkpoint":"%s"}`, checkpoint)
+		url := fmt.Sprintf("%s/api/investigations/%d/checkpoint", apiBase, investigationID)
+
+		resp, err := http.Post(url, "application/json", strings.NewReader(body))
 		if err != nil {
-			return errMsg{err}
+			return errMsg{fmt.Errorf("API error: %w", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return errMsg{fmt.Errorf("checkpoint approval failed: HTTP %d", resp.StatusCode)}
 		}
 
 		return checkpointApprovedMsg{investigationID: investigationID}

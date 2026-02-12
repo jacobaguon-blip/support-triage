@@ -426,7 +426,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, keys.Approve):
 			if m.hasCheckpoint() {
-				return m, approveCheckpointCmd(m.getSelectedInvestigationID())
+				inv := m.getSelectedInvestigation()
+				return m, approveCheckpointCmd(inv.ID, inv.CurrentCheckpoint)
 			}
 			return m, nil
 
