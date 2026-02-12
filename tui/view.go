@@ -36,7 +36,11 @@ func (m model) View() string {
 	}
 	contentWidth := m.width - sidebarWidth - 6
 
-	contentHeight := m.height - 6 // Account for title, tabs, and action bar
+	// Strict height budget: title(1) + mainContent(contentHeight) + actionBar(2) = m.height
+	contentHeight := m.height - 4
+	if contentHeight < 10 {
+		contentHeight = 10
+	}
 
 	// Render sidebar (list)
 	sidebar := m.renderSidebar(sidebarWidth, contentHeight)
@@ -117,13 +121,20 @@ func (m model) View() string {
 	// Action bar
 	actionBar := m.renderActionBar()
 
-	// Combine everything vertically
-	return lipgloss.JoinVertical(
+	// Combine everything vertically, then hard-clamp to terminal height
+	output := lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
 		mainContent,
 		actionBar,
 	)
+
+	// Ensure output never exceeds terminal height (prevents scroll-off)
+	lines := strings.Split(output, "\n")
+	if len(lines) > m.height {
+		lines = lines[:m.height]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m model) renderSidebar(width, height int) string {
