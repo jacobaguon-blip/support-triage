@@ -281,4 +281,9 @@
   .ticket-meta {
     display: none;
   }
+  .filter-btn {
+    min-height: 44px;
+    padding: 8px 4px;
+    font-size: 12px;
+  }
 }

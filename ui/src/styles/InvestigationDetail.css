@@ -323,4 +323,9 @@
     align-items: stretch;
     gap: 6px;
   }
+  .view-mode-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
 }

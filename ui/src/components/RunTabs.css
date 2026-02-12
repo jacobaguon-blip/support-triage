@@ -267,8 +267,9 @@
     font-size: 11px;
   }
   .hard-reset-btn--compact {
-    padding: 3px 8px;
-    font-size: 10px;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 11px;
   }
   .hard-reset-dialog {
     padding: 16px;

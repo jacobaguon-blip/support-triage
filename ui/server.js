@@ -2143,6 +2143,12 @@ async function pollForNewResponses() {
   }
 }
 
+// ============ API 404 CATCH-ALL ============
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found', path: req.originalUrl })
+})
+
 // ============ START SERVER ============
 
 const PORT = 3001

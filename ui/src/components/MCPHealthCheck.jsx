@@ -3,7 +3,8 @@ import '../styles/MCPHealthCheck.css'
 
 /**
  * MCPHealthCheck - Validates all MCP servers on startup
- * Shows a modal with status of Pylon, Linear, Slack, Notion, and Claude CLI
+ * Shows as a non-blocking banner at the top of the page.
+ * Auto-dismisses after 5 seconds if all services are OK.
  */
 export default function MCPHealthCheck({ onClose }) {
   const [checking, setChecking] = useState(true)
@@ -11,6 +12,7 @@ export default function MCPHealthCheck({ onClose }) {
   const [error, setError] = useState(null)
   const [expandedService, setExpandedService] = useState(null)
   const [copied, setCopied] = useState(null)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     checkMCPServers()
@@ -110,46 +112,37 @@ export default function MCPHealthCheck({ onClose }) {
     return steps[serviceKey] || null
   }
 
+  // Auto-dismiss after 5 seconds if all services are OK
+  useEffect(() => {
+    if (!checking && results && results.overall === 'ok') {
+      const timer = setTimeout(onClose, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [checking, results, onClose])
+
+  // Banner: checking state
   if (checking) {
     return (
-      <div className="mcp-health-modal-overlay">
-        <div className="mcp-health-modal">
-          <div className="mcp-health-header">
-            <h2>Checking MCP Servers...</h2>
-          </div>
-          <div className="mcp-health-body">
-            <div className="mcp-health-spinner">
-              <div className="spinner"></div>
-              <p>Validating access to Pylon, Linear, Slack, and Notion</p>
-            </div>
-          </div>
+      <div className="mcp-health-banner mcp-health-banner--checking">
+        <div className="mcp-health-banner__content">
+          <div className="mcp-health-banner__spinner" />
+          <span>Checking MCP servers...</span>
         </div>
+        <button className="mcp-health-banner__close" onClick={onClose} title="Dismiss">✕</button>
       </div>
     )
   }
 
+  // Banner: error contacting backend
   if (error) {
     return (
-      <div className="mcp-health-modal-overlay">
-        <div className="mcp-health-modal">
-          <div className="mcp-health-header error">
-            <h2>Health Check Failed</h2>
-          </div>
-          <div className="mcp-health-body">
-            <p className="error-message">{error}</p>
-            <p className="error-hint">
-              Make sure the backend server is running on port 3001
-            </p>
-          </div>
-          <div className="mcp-health-footer">
-            <button onClick={checkMCPServers} className="btn-retry">
-              Retry
-            </button>
-            <button onClick={onClose} className="btn-dismiss">
-              Dismiss
-            </button>
-          </div>
+      <div className="mcp-health-banner mcp-health-banner--error">
+        <div className="mcp-health-banner__content">
+          <span className="mcp-health-banner__icon">✗</span>
+          <span>Health check failed: {error}</span>
+          <button className="mcp-health-banner__action" onClick={checkMCPServers}>Retry</button>
         </div>
+        <button className="mcp-health-banner__close" onClick={onClose} title="Dismiss">✕</button>
       </div>
     )
   }
@@ -158,22 +151,45 @@ export default function MCPHealthCheck({ onClose }) {
 
   const { overall, servers } = results
   const hasErrors = overall === 'error'
+  const okCount = Object.values(servers).filter(s => s.status === 'ok').length
+  const totalCount = Object.values(servers).length
 
+  // Compact banner
   return (
-    <div className="mcp-health-modal-overlay">
-      <div className="mcp-health-modal">
-        <div className={`mcp-health-header ${overall}`}>
-          <h2>
-            {overall === 'ok' && '✓ All Systems Ready'}
-            {overall === 'error' && '✗ Some Services Unavailable'}
-            {overall === 'warning' && '⚠ Partial Connectivity'}
-          </h2>
-        </div>
+    <div className={`mcp-health-banner mcp-health-banner--${overall}`}>
+      <div className="mcp-health-banner__content">
+        <span className="mcp-health-banner__icon">
+          {overall === 'ok' && '✓'}
+          {overall === 'error' && '✗'}
+          {overall === 'warning' && '⚠'}
+        </span>
+        <span>
+          {overall === 'ok' && 'All systems ready'}
+          {overall === 'error' && `${okCount}/${totalCount} services connected`}
+          {overall === 'warning' && 'Partial connectivity'}
+        </span>
 
-        <div className="mcp-health-body">
+        {hasErrors && (
+          <button
+            className="mcp-health-banner__action"
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? 'Hide Details' : 'Show Details'}
+          </button>
+        )}
+
+        <button className="mcp-health-banner__action" onClick={checkMCPServers}>
+          Re-check
+        </button>
+      </div>
+      <button className="mcp-health-banner__close" onClick={onClose} title="Dismiss">✕</button>
+
+      {/* Expanded detail panel (only when user clicks "Show Details") */}
+      {expanded && (
+        <div className="mcp-health-banner__details">
           <div className="mcp-health-grid">
             {Object.entries(servers).map(([key, server]) => {
-              const isExpanded = expandedService === key
+              const isServiceExpanded = expandedService === key
               const resolution = getResolutionSteps(key, server)
               const hasError = server.status === 'error'
 
@@ -185,10 +201,10 @@ export default function MCPHealthCheck({ onClose }) {
                     {hasError && resolution && (
                       <button
                         className="btn-expand"
-                        onClick={() => setExpandedService(isExpanded ? null : key)}
+                        onClick={() => setExpandedService(isServiceExpanded ? null : key)}
                         title="Show resolution steps"
                       >
-                        {isExpanded ? '▼ Hide Fix' : '▶ How to Fix'}
+                        {isServiceExpanded ? '▼ Hide Fix' : '▶ How to Fix'}
                       </button>
                     )}
                   </div>
@@ -196,8 +212,7 @@ export default function MCPHealthCheck({ onClose }) {
                     {server.message || 'Unknown status'}
                   </div>
 
-                  {/* Expandable resolution section */}
-                  {hasError && isExpanded && resolution && (
+                  {hasError && isServiceExpanded && resolution && (
                     <div className="mcp-resolution-section">
                       <h4>{resolution.title}</h4>
                       <ol className="resolution-steps">
@@ -235,34 +250,8 @@ export default function MCPHealthCheck({ onClose }) {
               )
             })}
           </div>
-
-          {hasErrors && (
-            <div className="mcp-health-warning">
-              <strong>⚠ Some Services Are Unavailable</strong>
-              <p className="warning-note">
-                Click "How to Fix" on any failed service above for step-by-step resolution instructions.
-                You can continue anyway, but investigations may fail if required services are unavailable.
-              </p>
-            </div>
-          )}
         </div>
-
-        <div className="mcp-health-footer">
-          <button onClick={checkMCPServers} className="btn-retry">
-            Re-check
-          </button>
-          {!hasErrors && (
-            <button onClick={onClose} className="btn-primary">
-              Continue
-            </button>
-          )}
-          {hasErrors && (
-            <button onClick={onClose} className="btn-dismiss">
-              Continue Anyway
-            </button>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
