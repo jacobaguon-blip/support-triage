@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -202,7 +203,15 @@ func (m model) getAgentState(investigationID int, agentName string) *AgentState 
 	if m.agents[investigationID] == nil {
 		return nil
 	}
-	return m.agents[investigationID][agentName]
+	// Try exact match first, then case-insensitive (DB stores "slack", TUI uses "Slack")
+	if state, ok := m.agents[investigationID][agentName]; ok {
+		return state
+	}
+	lowerName := strings.ToLower(agentName)
+	if state, ok := m.agents[investigationID][lowerName]; ok {
+		return state
+	}
+	return nil
 }
 
 func (m model) hasCheckpoint() bool {

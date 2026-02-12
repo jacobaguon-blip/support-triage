@@ -7,7 +7,7 @@ import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import { runPhase0, runPhase1, runPhase2, populateFromTicketData } from './investigation-runner.js'
+import { runPhase0, runPhase1, runPhase1MultiAgent, runPhase2, populateFromTicketData } from './investigation-runner.js'
 import { createSnapshot, restoreToVersion, getVersions, getVersionDiff } from './version-manager.js'
 import { syncTicketResponses, checkForNewResponses } from './response-sync.js'
 import { encrypt, decrypt, generateMCPConfig, writeMCPConfig, maskApiKey, testConnection } from './credentials-manager.js'
@@ -222,6 +222,33 @@ function migrateExistingDB() {
     } catch { /* column already exists */ }
   }
 
+  // Migrate agents table: old CLI schema → new Express schema
+  // Check if old schema exists (has investigation_run_id but no run_number)
+  try {
+    db.prepare('SELECT run_number FROM agents LIMIT 0').free()
+  } catch {
+    // Column doesn't exist — drop old table and recreate
+    console.log('[Migration] Replacing old agents table with new schema')
+    try { db.run('DROP TABLE IF EXISTS agents') } catch {}
+    try { db.run('DROP INDEX IF EXISTS idx_agents_investigation') } catch {}
+    try { db.run('DROP INDEX IF EXISTS idx_agents_status') } catch {}
+  }
+  db.run(`
+    CREATE TABLE IF NOT EXISTS agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      investigation_id INTEGER NOT NULL,
+      run_number INTEGER NOT NULL DEFAULT 1,
+      agent_name TEXT NOT NULL,
+      pid INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      started_at DATETIME,
+      completed_at DATETIME,
+      error_message TEXT,
+      findings_file TEXT,
+      UNIQUE(investigation_id, run_number, agent_name)
+    )
+  `)
+
   // Bootstrap investigation_runs for existing investigations that don't have runs yet
   try {
     const investigations = db.prepare('SELECT id, status, current_checkpoint, created_at FROM investigations')
@@ -312,6 +339,43 @@ const dbHelpers = {
 
   getInvestigation(id) {
     return queryOne('SELECT * FROM investigations WHERE id = ?', [id])
+  },
+
+  upsertAgent(invId, runNum, agentName, fields) {
+    const existing = queryOne(
+      'SELECT id FROM agents WHERE investigation_id = ? AND run_number = ? AND agent_name = ?',
+      [invId, runNum, agentName]
+    )
+    if (existing) {
+      const setClauses = []
+      const params = []
+      for (const [key, value] of Object.entries(fields)) {
+        setClauses.push(`${key} = ?`)
+        params.push(value)
+      }
+      if (setClauses.length > 0) {
+        params.push(existing.id)
+        run(`UPDATE agents SET ${setClauses.join(', ')} WHERE id = ?`, params)
+      }
+    } else {
+      const cols = ['investigation_id', 'run_number', 'agent_name', ...Object.keys(fields)]
+      const vals = [invId, runNum, agentName, ...Object.values(fields)]
+      const placeholders = cols.map(() => '?').join(', ')
+      run(`INSERT INTO agents (${cols.join(', ')}) VALUES (${placeholders})`, vals)
+    }
+  },
+
+  getAgents(invId, runNum) {
+    if (runNum !== undefined) {
+      return queryAll(
+        'SELECT * FROM agents WHERE investigation_id = ? AND run_number = ? ORDER BY agent_name ASC',
+        [invId, runNum]
+      )
+    }
+    return queryAll(
+      'SELECT * FROM agents WHERE investigation_id = ? ORDER BY run_number DESC, agent_name ASC',
+      [invId]
+    )
   }
 }
 
@@ -651,6 +715,21 @@ app.post('/api/investigations/:id/sync-responses', (req, res) => {
   }
 })
 
+// GET /api/investigations/:id/agents — list agents for current run
+app.get('/api/investigations/:id/agents', (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    const inv = queryOne('SELECT current_run_number FROM investigations WHERE id = ?', [id])
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' })
+    const runNum = req.query.run ? parseInt(req.query.run) : (inv.current_run_number || 1)
+    const agents = dbHelpers.getAgents(id, runNum)
+    res.json(agents)
+  } catch (error) {
+    console.error('Error loading agents:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // GET /api/investigations/:id/runs — list all runs for this ticket
 app.get('/api/investigations/:id/runs', (req, res) => {
   try {
@@ -942,9 +1021,9 @@ app.post('/api/investigations/:id/checkpoint', (req, res) => {
         const currentInv = queryOne('SELECT current_run_number FROM investigations WHERE id = ?', [id])
         const runNum = currentInv?.current_run_number || 1
         if (checkpoint === 'checkpoint_1_post_classification') {
-          console.log(`[Server] Checkpoint 1 confirmed → launching Phase 1 for #${id} (Run #${runNum})`)
-          runPhase1(id, investigationDir, dbHelpers, runNum).catch(err => {
-            console.error(`[Server] Phase 1 failed for #${id}:`, err.message)
+          console.log(`[Server] Checkpoint 1 confirmed → launching Phase 1 (multi-agent) for #${id} (Run #${runNum})`)
+          runPhase1MultiAgent(id, investigationDir, dbHelpers, runNum).catch(err => {
+            console.error(`[Server] Phase 1 multi-agent failed for #${id}:`, err.message)
           })
         } else if (checkpoint === 'checkpoint_2_post_context_gathering') {
           console.log(`[Server] Checkpoint 2 confirmed → launching Phase 2 for #${id} (Run #${runNum})`)
@@ -1013,7 +1092,7 @@ app.post('/api/investigations/:id/retry', (req, res) => {
     if (cp === 'checkpoint_1_post_classification' || !inv.customer_name) {
       runPhase0(id, investigationDir, dbHelpers).catch(console.error)
     } else if (cp === 'checkpoint_2_post_context_gathering') {
-      runPhase1(id, investigationDir, dbHelpers).catch(console.error)
+      runPhase1MultiAgent(id, investigationDir, dbHelpers).catch(console.error)
     } else if (cp === 'checkpoint_3_investigation_validation') {
       runPhase2(id, investigationDir, dbHelpers).catch(console.error)
     }

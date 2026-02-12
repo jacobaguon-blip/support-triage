@@ -577,6 +577,285 @@ Write structured markdown findings:
 }
 
 /**
+ * Run a single focused agent as part of Phase 1 multi-agent
+ * @param {string} agentName - pylon, slack, linear, or codebase
+ * @param {string} prompt - focused prompt for this agent
+ * @param {number} ticketId
+ * @param {string} investigationDir
+ * @param {object} dbHelpers
+ * @param {number} runNumber
+ */
+async function runSingleAgent(agentName, prompt, ticketId, investigationDir, dbHelpers, runNumber) {
+  const agentStartTime = Date.now()
+  const findingsFile = `${agentName}-findings.md`
+
+  try {
+    // Mark running
+    dbHelpers.upsertAgent(ticketId, runNumber, agentName, {
+      status: 'running',
+      started_at: new Date().toISOString()
+    })
+    writeActivity(investigationDir, `phase1-${agentName}`, 'start', `${agentName} agent starting`)
+
+    const output = await runClaude(prompt, investigationDir, {
+      investigationDir,
+      phase: `phase1-${agentName}`
+    })
+
+    // Write per-agent findings
+    writeFileSync(join(investigationDir, findingsFile), output)
+    const elapsed = ((Date.now() - agentStartTime) / 1000).toFixed(1)
+    writeActivity(investigationDir, `phase1-${agentName}`, 'complete', `${agentName} agent done (${elapsed}s, ${output.length} chars)`)
+
+    dbHelpers.upsertAgent(ticketId, runNumber, agentName, {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      findings_file: findingsFile
+    })
+
+    // Write conversation item for this agent's findings
+    writeConversationItem(dbHelpers, ticketId, {
+      type: 'agent_output',
+      phase: 'phase1',
+      actor_name: `${agentName} agent`,
+      actor_role: 'agent',
+      content: output,
+      content_preview: `${agentName} findings — ${output.length} chars`,
+      metadata: { agent: agentName, file: findingsFile, duration_ms: Date.now() - agentStartTime }
+    }, runNumber)
+
+    return { agent: agentName, status: 'completed', output }
+  } catch (err) {
+    const elapsed = ((Date.now() - agentStartTime) / 1000).toFixed(1)
+    writeActivity(investigationDir, `phase1-${agentName}`, 'error', `${agentName} agent failed (${elapsed}s): ${err.message}`)
+
+    dbHelpers.upsertAgent(ticketId, runNumber, agentName, {
+      status: 'error',
+      completed_at: new Date().toISOString(),
+      error_message: err.message
+    })
+
+    return { agent: agentName, status: 'error', error: err.message }
+  }
+}
+
+/**
+ * Phase 1: Multi-Agent Context Gathering
+ * Spawns 4 parallel agents: pylon, slack, linear, codebase
+ */
+export async function runPhase1MultiAgent(ticketId, investigationDir, dbHelpers, runNumber = 1) {
+  const startTime = Date.now()
+  console.log(`[Phase1-MultiAgent] Starting for ticket #${ticketId}`)
+  writeActivity(investigationDir, 'phase1', 'start', `Starting Phase 1 (multi-agent) for ticket #${ticketId}`)
+
+  try {
+    const tdPath = join(investigationDir, 'ticket-data.json')
+    if (!existsSync(tdPath)) throw new Error('ticket-data.json not found')
+    const td = JSON.parse(readFileSync(tdPath, 'utf-8'))
+
+    writeActivity(investigationDir, 'phase1', 'info', `Loaded ticket: "${td.title}" (${td.classification})`)
+
+    // Build shared context header
+    const ticketContext = `TICKET #${ticketId}
+Customer: ${td.customer_name}
+Title: ${td.title}
+Classification: ${td.classification}
+Product Area: ${td.product_area}
+${td.connector_name ? `Connector: ${td.connector_name}` : ''}
+Body: ${td.body || '(no body)'}`
+
+    // Define per-agent prompts
+    const agentPrompts = {
+      pylon: `You are a Pylon research agent for ConductorOne support. Your ONLY job is to search Pylon for related issues.
+
+${ticketContext}
+
+INSTRUCTIONS:
+1. Use pylon_search_issues to find similar tickets (try filtering by account_id "${td.account_id || ''}" or by tags).
+2. If a filter fails, try pylon_list_issues with start_time from 30 days ago to now, limit 10.
+3. For each promising result, note: issue number, title, state, relevance to this ticket.
+
+CONSTRAINTS:
+- Max 3 MCP tool calls total. Do not loop or retry.
+- If tools are unavailable, note it and produce what you can.
+
+OUTPUT FORMAT (markdown):
+## Pylon Related Issues
+(List each with [Source: Pylon #ID] citation)
+
+## Gaps / Unknowns
+(What couldn't be searched)`,
+
+      slack: `You are a Slack research agent for ConductorOne support. Your ONLY job is to search Slack for discussions related to this ticket.
+
+${ticketContext}
+
+INSTRUCTIONS:
+1. Use slack_list_channels (limit 10) to find relevant channels by name.
+2. Pick at most 2 channels that seem relevant (customer-success, eng-support, escalations, etc.).
+3. Use slack_get_channel_history on those channels (limit 10 messages each).
+4. Look for mentions of the customer name, connector, or error patterns.
+
+CONSTRAINTS:
+- Max 4 MCP tool calls total. Do NOT iterate through all channels.
+- If tools are unavailable, note it and produce what you can.
+
+OUTPUT FORMAT (markdown):
+## Slack Discussions
+(Summarize relevant threads. Cite [Source: Slack #channel-name] for each.)
+
+## Gaps / Unknowns
+(What couldn't be searched)`,
+
+      linear: `You are a Linear research agent for ConductorOne support. Your ONLY job is to search Linear for related engineering issues.
+
+${ticketContext}
+
+INSTRUCTIONS:
+1. Search Linear issues using keywords from the ticket title and product area.
+2. Search for the connector name if applicable.
+3. Check for recent issues in the relevant team.
+4. For each result note: issue ID, title, status, assignee, relevance.
+
+CONSTRAINTS:
+- Max 5 MCP tool calls total.
+- If tools are unavailable, note it and produce what you can.
+
+OUTPUT FORMAT (markdown):
+## Linear Issues Found
+(List each with issue ID, title, status, relevance. Cite [Source: Linear ENG-XXXX] for each.)
+
+## Gaps / Unknowns
+(What couldn't be searched)`,
+
+      codebase: `You are a codebase research agent for ConductorOne support. Your ONLY job is to find relevant code for this ticket.
+
+${ticketContext}
+
+INSTRUCTIONS:
+1. Based on the classification, determine which repo to search:
+   - Connector bugs: ~/C1/ConductorOne/baton-{connector-name}/
+   - Product bugs: ~/C1/ductone/
+2. Search for files related to the error or product area mentioned in the ticket.
+3. Provide Level 2 analysis: match symptoms to code paths, identify relevant files and line numbers.
+4. Do NOT modify any files. ~/C1/ is READ-ONLY.
+
+CONSTRAINTS:
+- Max 5 tool calls total (grep, glob, read).
+- If the relevant repo doesn't exist, note it.
+
+OUTPUT FORMAT (markdown):
+## Relevant Code Files
+(List files with path:line_range and description)
+
+## Error Trace Analysis
+(How the symptom maps to code paths)
+
+## Gaps / Unknowns
+(What couldn't be found)`
+    }
+
+    // Insert all agents as pending
+    const agentNames = ['pylon', 'slack', 'linear', 'codebase']
+    for (const name of agentNames) {
+      dbHelpers.upsertAgent(ticketId, runNumber, name, { status: 'pending' })
+    }
+    writeActivity(investigationDir, 'phase1', 'info', `Spawning 4 agents in parallel: ${agentNames.join(', ')}`)
+
+    // Spawn all agents in parallel
+    const agentPromises = agentNames.map(name =>
+      runSingleAgent(name, agentPrompts[name], ticketId, investigationDir, dbHelpers, runNumber)
+    )
+
+    const results = await Promise.allSettled(agentPromises)
+
+    // Merge all findings into phase1-findings.md for backward compat
+    let merged = `# Phase 1 Findings — Ticket #${ticketId}\n\n`
+    merged += `_Generated by multi-agent system at ${new Date().toISOString()}_\n\n`
+
+    const completedAgents = []
+    const failedAgents = []
+
+    for (const result of results) {
+      const agentResult = result.status === 'fulfilled' ? result.value : { agent: 'unknown', status: 'error', error: result.reason?.message }
+      if (agentResult.status === 'completed') {
+        completedAgents.push(agentResult.agent)
+        merged += `---\n## ${agentResult.agent.charAt(0).toUpperCase() + agentResult.agent.slice(1)} Agent Findings\n\n`
+        merged += agentResult.output + '\n\n'
+      } else {
+        failedAgents.push(agentResult.agent)
+        merged += `---\n## ${agentResult.agent.charAt(0).toUpperCase() + agentResult.agent.slice(1)} Agent — Error\n\n`
+        merged += `_Agent failed: ${agentResult.error}_\n\n`
+      }
+    }
+
+    writeFileSync(join(investigationDir, 'phase1-findings.md'), merged)
+    writeActivity(investigationDir, 'phase1', 'result', `Merged findings from ${completedAgents.length} agents (${failedAgents.length} failed)`)
+
+    // Parse source citations from merged findings
+    const sourceCitations = []
+    const pylonMatches = [...merged.matchAll(/\[Source:\s*Pylon\s+#?(\d+)\]/gi)]
+    for (const m of pylonMatches) {
+      if (!sourceCitations.find(s => s.id === m[1])) {
+        sourceCitations.push({ type: 'pylon', id: m[1], label: `Pylon #${m[1]}` })
+      }
+    }
+    const linearMatches = [...merged.matchAll(/\[Source:\s*Linear\s+([A-Z]+-\d+)\]/gi)]
+    for (const m of linearMatches) {
+      if (!sourceCitations.find(s => s.id === m[1])) {
+        sourceCitations.push({ type: 'linear', id: m[1], label: `Linear ${m[1]}` })
+      }
+    }
+    const slackMatches = [...merged.matchAll(/\[Source:\s*Slack\s+#([^\],]+?)(?:,\s*[^\]]+)?\]/gi)]
+    for (const m of slackMatches) {
+      if (!sourceCitations.find(s => s.id === m[1])) {
+        sourceCitations.push({ type: 'slack', id: m[1], label: `Slack #${m[1]}` })
+      }
+    }
+
+    // Write merged conversation item
+    writeConversationItem(dbHelpers, ticketId, {
+      type: 'system_result',
+      phase: 'phase1',
+      actor_name: 'System',
+      actor_role: 'system',
+      content: merged,
+      content_preview: `Context gathered — ${completedAgents.length}/4 agents completed`,
+      metadata: {
+        file: 'phase1-findings.md',
+        findings_length: merged.length,
+        sources: sourceCitations,
+        completed_agents: completedAgents,
+        failed_agents: failedAgents
+      }
+    }, runNumber)
+
+    const ts = new Date().toISOString().replace('T', ' ').split('.')[0]
+    dbHelpers.updateInvestigation(ticketId, {
+      status: 'waiting',
+      current_checkpoint: 'checkpoint_2_post_context_gathering',
+      updated_at: ts
+    })
+
+    writeMetrics(investigationDir, {
+      phase1_duration_ms: Date.now() - startTime,
+      phase1_agents_completed: completedAgents.length,
+      phase1_agents_failed: failedAgents.length
+    })
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    console.log(`[Phase1-MultiAgent] Complete in ${elapsed}s — ${completedAgents.length}/4 agents succeeded`)
+    writeActivity(investigationDir, 'phase1', 'complete', `Phase 1 complete (${elapsed}s) — ${completedAgents.length}/4 agents, awaiting context review`)
+  } catch (err) {
+    console.error(`[Phase1-MultiAgent] ERROR: ${err.message}`)
+    writeActivity(investigationDir, 'phase1', 'error', `Phase 1 multi-agent failed: ${err.message}`)
+    try {
+      const ts = new Date().toISOString().replace('T', ' ').split('.')[0]
+      dbHelpers.updateInvestigation(ticketId, { status: 'error', updated_at: ts })
+    } catch {}
+  }
+}
+
+/**
  * Phase 2: Document synthesis
  */
 export async function runPhase2(ticketId, investigationDir, dbHelpers, runNumber = 1) {

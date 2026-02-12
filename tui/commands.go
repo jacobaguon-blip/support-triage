@@ -61,38 +61,53 @@ func loadInvestigationsCmd() tea.Cmd {
 	}
 }
 
-// Load agent statuses for a specific investigation
+// Load agent statuses for a specific investigation via Express API
 func loadAgentStatusesCmd(investigationID int) tea.Cmd {
 	return func() tea.Msg {
-		cmd := exec.Command(cliPath, "status", strconv.Itoa(investigationID), "--json")
-		output, err := cmd.Output()
+		url := fmt.Sprintf("%s/api/investigations/%d/agents", apiBase, investigationID)
+		resp, err := http.Get(url)
 		if err != nil {
-			return errMsg{err}
+			return errMsg{fmt.Errorf("API error loading agents: %w", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return errMsg{fmt.Errorf("agents API returned HTTP %d", resp.StatusCode)}
 		}
 
-		var status struct {
-			Investigation Investigation   `json:"investigation"`
-			Agents        []struct {
-				ID              int    `json:"id"`
-				InvestigationID int    `json:"investigation_id"`
-				AgentName       string `json:"agent_name"`
-				PID             int    `json:"pid"`
-				Status          string `json:"status"`
-				LogFile         string `json:"log_file"`
-				FindingsFile    string `json:"findings_file"`
-				StartedAt       string `json:"started_at"`
-			} `json:"agents"`
+		var apiAgents []struct {
+			ID              int    `json:"id"`
+			InvestigationID int    `json:"investigation_id"`
+			RunNumber       int    `json:"run_number"`
+			AgentName       string `json:"agent_name"`
+			PID             int    `json:"pid"`
+			Status          string `json:"status"`
+			StartedAt       string `json:"started_at"`
+			CompletedAt     string `json:"completed_at"`
+			ErrorMessage    string `json:"error_message"`
+			FindingsFile    string `json:"findings_file"`
 		}
-		err = json.Unmarshal(output, &status)
-		if err != nil {
-			return errMsg{err}
+
+		decoder := json.NewDecoder(resp.Body)
+		if err := decoder.Decode(&apiAgents); err != nil {
+			return errMsg{fmt.Errorf("failed to parse agents response: %w", err)}
 		}
 
 		// Convert to AgentState map
 		agents := make(map[string]*AgentState)
-		for _, agent := range status.Agents {
+		for _, agent := range apiAgents {
 			startedAt, _ := time.Parse(time.RFC3339, agent.StartedAt)
-			runtime := time.Since(startedAt)
+			runtime := time.Duration(0)
+			if !startedAt.IsZero() {
+				if agent.CompletedAt != "" {
+					completedAt, _ := time.Parse(time.RFC3339, agent.CompletedAt)
+					if !completedAt.IsZero() {
+						runtime = completedAt.Sub(startedAt)
+					}
+				} else {
+					runtime = time.Since(startedAt)
+				}
+			}
 
 			agents[agent.AgentName] = &AgentState{
 				Name:         agent.AgentName,
@@ -102,7 +117,6 @@ func loadAgentStatusesCmd(investigationID int) tea.Cmd {
 				Runtime:      runtime,
 				Logs:         []LogEntry{},
 				Findings:     []Finding{},
-				LogFile:      agent.LogFile,
 				FindingsFile: agent.FindingsFile,
 			}
 		}
@@ -114,11 +128,11 @@ func loadAgentStatusesCmd(investigationID int) tea.Cmd {
 	}
 }
 
-// Stream agent logs (read last N lines)
+// Stream agent logs from activity-log.jsonl filtered by phase1-{agent} tag
 func streamAgentLogsCmd(investigationID int, agentName string) tea.Cmd {
 	return func() tea.Msg {
-		logFile := fmt.Sprintf("%s-agent.log", strings.ToLower(agentName))
-		logPath := resolveInvestigationFile(investigationID, logFile)
+		// Read from activity-log.jsonl and filter by phase tag
+		logPath := resolveInvestigationFile(investigationID, "activity-log.jsonl")
 		if logPath == "" {
 			return agentLogsLoadedMsg{
 				investigationID: investigationID,
@@ -127,32 +141,45 @@ func streamAgentLogsCmd(investigationID int, agentName string) tea.Cmd {
 			}
 		}
 
-		// Use tail to get last 50 lines
-		cmd := exec.Command("tail", "-n", "50", logPath)
-		output, err := cmd.Output()
+		content, err := os.ReadFile(logPath)
 		if err != nil {
-			return errMsg{err}
+			return agentLogsLoadedMsg{
+				investigationID: investigationID,
+				agentName:       agentName,
+				logs:            []LogEntry{},
+			}
 		}
 
-		// Parse JSONL logs
+		// Filter for entries matching this agent's phase tag
+		phaseTag := fmt.Sprintf("phase1-%s", strings.ToLower(agentName))
 		var logs []LogEntry
-		scanner := bufio.NewScanner(bytes.NewReader(output))
+		scanner := bufio.NewScanner(bytes.NewReader(content))
 		for scanner.Scan() {
 			var entry struct {
 				Timestamp string `json:"ts"`
-				Level     string `json:"level"`
-				Message   string `json:"msg"`
+				Phase     string `json:"phase"`
+				Type      string `json:"type"`
+				Message   string `json:"message"`
 			}
 			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-				continue // Skip malformed lines
+				continue
+			}
+
+			if entry.Phase != phaseTag {
+				continue
 			}
 
 			timestamp, _ := time.Parse(time.RFC3339, entry.Timestamp)
 			logs = append(logs, LogEntry{
 				Timestamp: timestamp,
-				Level:     entry.Level,
+				Level:     entry.Type,
 				Message:   entry.Message,
 			})
+		}
+
+		// Keep only last 50 entries
+		if len(logs) > 50 {
+			logs = logs[len(logs)-50:]
 		}
 
 		return agentLogsLoadedMsg{
