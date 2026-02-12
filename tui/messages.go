@@ -61,6 +61,16 @@ type investigationCreatedMsg struct {
 	err             error
 }
 
+type ticketDataLoadedMsg struct {
+	investigationID int
+	data            *TicketData
+}
+
+type investigationUpdatedMsg struct {
+	investigationID int
+	err             error
+}
+
 type errMsg struct {
 	err error
 }

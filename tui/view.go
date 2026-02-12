@@ -221,6 +221,11 @@ func (m model) renderTabContent(width, height int) string {
 		return ""
 	}
 
+	// Show checkpoint 1 review card when waiting at classification
+	if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
+		return m.renderCheckpointReview(inv, width, height)
+	}
+
 	switch m.activeTab {
 	case TabSlack, TabLinear, TabPylon, TabCodebase:
 		return m.renderAgentView(width, height)
@@ -262,6 +267,189 @@ func (m model) renderCheckpointBanner(inv *Investigation, width int) string {
 		Width(width - 4)
 
 	return bannerStyle.Render(fmt.Sprintf("⏸ Checkpoint: %s — Press 'a' to approve", name))
+}
+
+func (m model) renderCheckpointReview(inv *Investigation, width, height int) string {
+	td := m.ticketData[inv.ID]
+
+	// Loading state
+	if td == nil {
+		placeholder := fmt.Sprintf("%s Loading ticket data...", m.spinner.View())
+		return contentPanelStyle.
+			Width(width - 4).
+			Height(height - 2).
+			Render(placeholder)
+	}
+
+	innerWidth := width - 8
+	var sections []string
+
+	// Header
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(statusWaiting).
+		Background(bgTertiary).
+		Padding(0, 1).
+		Width(innerWidth)
+	sections = append(sections, headerStyle.Render("⏸ CLASSIFICATION REVIEW"))
+	sections = append(sections, "")
+
+	// Ticket info
+	ticketLine := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).
+		Render(fmt.Sprintf("#%d — %s", td.TicketID, td.CustomerName))
+	sections = append(sections, ticketLine)
+
+	titleLine := lipgloss.NewStyle().Foreground(textSecondary).
+		Render(fmt.Sprintf("Title: %s", td.Title))
+	sections = append(sections, titleLine)
+	sections = append(sections, "")
+
+	// Classification fields intro
+	introStyle := lipgloss.NewStyle().Foreground(textSecondary).Italic(true)
+	sections = append(sections, introStyle.Render("The system classified this ticket as:"))
+	sections = append(sections, "")
+
+	// Editable fields
+	fieldNames := []string{"Classification", "Product Area", "Priority"}
+	fieldValues := []string{m.cp1Classification, m.cp1ProductArea, m.cp1Priority}
+
+	for i, name := range fieldNames {
+		sections = append(sections, m.renderCP1Field(name, fieldValues[i], i, innerWidth))
+
+		// Render dropdown if open for this field
+		if m.cp1DropdownOpen && m.cp1FocusField == i {
+			sections = append(sections, m.renderCP1Dropdown(innerWidth))
+		}
+	}
+
+	// Connector (read-only)
+	connectorVal := "—"
+	if td.ConnectorName != nil && *td.ConnectorName != "" {
+		connectorVal = *td.ConnectorName
+	}
+	connLabel := lipgloss.NewStyle().Foreground(textSecondary).Width(18).Render("  Connector:")
+	connValue := lipgloss.NewStyle().Foreground(textMuted).Render(connectorVal)
+	sections = append(sections, connLabel+connValue)
+
+	sections = append(sections, "")
+
+	// Sources
+	sourceStyle := lipgloss.NewStyle().Foreground(textMuted).Italic(true)
+	sections = append(sections, sourceStyle.Render(fmt.Sprintf("Sources: Pylon #%d, Built-in classifier", td.TicketID)))
+	sections = append(sections, "")
+
+	// Ticket body preview
+	bodyHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(textPrimary)
+	sections = append(sections, bodyHeaderStyle.Render("Ticket Body:"))
+
+	bodyText := td.Body
+	if bodyText == "" {
+		bodyText = "(no body text)"
+	}
+	// Truncate to ~5 lines worth
+	bodyLines := strings.Split(bodyText, "\n")
+	if len(bodyLines) > 5 {
+		bodyLines = bodyLines[:5]
+		bodyLines = append(bodyLines, "...")
+	}
+	// Also truncate very long single lines
+	for i, line := range bodyLines {
+		if len(line) > innerWidth-4 {
+			bodyLines[i] = line[:innerWidth-7] + "..."
+		}
+	}
+	bodyStyle := lipgloss.NewStyle().Foreground(textSecondary).Width(innerWidth - 2).Padding(0, 1)
+	sections = append(sections, bodyStyle.Render(strings.Join(bodyLines, "\n")))
+
+	sections = append(sections, "")
+
+	// Divider
+	divider := lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat("─", innerWidth))
+	sections = append(sections, divider)
+
+	// Next step info
+	nextStyle := lipgloss.NewStyle().Foreground(textSecondary)
+	sections = append(sections, nextStyle.Render("Approve → starts context gathering"))
+	sections = append(sections, nextStyle.Render("(Agents will search Pylon, Slack for context)"))
+	sections = append(sections, "")
+
+	// Key hints
+	hintStyle := lipgloss.NewStyle().Foreground(textMuted)
+	sections = append(sections, hintStyle.Render("[Tab] next field  [Enter] open dropdown  [a] approve  [r] refresh"))
+
+	content := strings.Join(sections, "\n")
+
+	return contentPanelStyle.
+		Width(width - 4).
+		Height(height - 2).
+		Render(content)
+}
+
+func (m model) renderCP1Field(name, value string, fieldIndex, width int) string {
+	isFocused := m.cp1FocusField == fieldIndex
+
+	// Label
+	labelWidth := 18
+	var label string
+	if isFocused {
+		label = lipgloss.NewStyle().Bold(true).Foreground(c1Primary).Width(labelWidth).
+			Render(fmt.Sprintf("▸ %s:", name))
+	} else {
+		label = lipgloss.NewStyle().Foreground(textSecondary).Width(labelWidth).
+			Render(fmt.Sprintf("  %s:", name))
+	}
+
+	// Value with dropdown indicator
+	var valueRendered string
+	if isFocused {
+		valueStyle := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(c1Primary).
+			Background(bgTertiary).
+			Padding(0, 1)
+		valueRendered = valueStyle.Render(fmt.Sprintf("%s ▾", value))
+	} else {
+		valueStyle := lipgloss.NewStyle().
+			Foreground(textPrimary).
+			Padding(0, 1)
+		valueRendered = valueStyle.Render(value)
+	}
+
+	return label + valueRendered
+}
+
+func (m model) renderCP1Dropdown(width int) string {
+	options := m.cp1ActiveOptions()
+	if options == nil {
+		return ""
+	}
+
+	var lines []string
+	for i, opt := range options {
+		if i == m.cp1DropdownIndex {
+			style := lipgloss.NewStyle().
+				Bold(true).
+				Foreground(bgPrimary).
+				Background(c1Primary).
+				Padding(0, 1)
+			lines = append(lines, fmt.Sprintf("  %s", style.Render(opt)))
+		} else {
+			style := lipgloss.NewStyle().
+				Foreground(textPrimary).
+				Background(bgSecondary).
+				Padding(0, 1)
+			lines = append(lines, fmt.Sprintf("  %s", style.Render(opt)))
+		}
+	}
+
+	dropdownStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(c1Primary).
+		Background(bgSecondary).
+		Padding(0, 0).
+		MarginLeft(18)
+
+	return dropdownStyle.Render(strings.Join(lines, "\n"))
 }
 
 func (m model) renderAgentView(width, height int) string {

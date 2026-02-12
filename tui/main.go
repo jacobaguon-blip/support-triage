@@ -97,6 +97,7 @@ func initialModel() model {
 		agents:            make(map[int]map[string]*AgentState),
 		summaries:         make(map[int]*InvestigationSummary),
 		customerResponses: make(map[int]*CustomerResponse),
+		ticketData:        make(map[int]*TicketData),
 		spinner:           s,
 		responseTextarea:  ta,
 		loading:           true,
@@ -150,11 +151,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Load agent data for selected investigation if available
 		if len(m.investigations) > 0 && m.selectedIndex < len(m.investigations) {
 			inv := m.investigations[m.selectedIndex]
-			return m, tea.Batch(
+			cmds := []tea.Cmd{
 				loadAgentStatusesCmd(inv.ID),
 				streamAgentLogsCmd(inv.ID, m.getActiveAgentName()),
 				loadAgentFindingsCmd(inv.ID, m.getActiveAgentName()),
-			)
+			}
+			// Load ticket data if at checkpoint 1
+			if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
+				cmds = append(cmds, loadTicketDataCmd(inv.ID))
+			}
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 
@@ -248,6 +254,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.createError = ""
 		return m, loadInvestigationsCmd()
 
+	case ticketDataLoadedMsg:
+		if msg.data != nil {
+			m.ticketData[msg.investigationID] = msg.data
+			// Initialize cp1 editable fields if this is the selected investigation
+			inv := m.getSelectedInvestigation()
+			if inv != nil && inv.ID == msg.investigationID && m.cp1Loaded != msg.investigationID {
+				m.cp1Classification = msg.data.Classification
+				m.cp1ProductArea = msg.data.ProductArea
+				m.cp1Priority = msg.data.Priority
+				m.cp1FocusField = 0
+				m.cp1DropdownOpen = false
+				m.cp1DropdownIndex = 0
+				m.cp1Loaded = msg.investigationID
+			}
+		}
+		return m, nil
+
+	case investigationUpdatedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		// After update, approve the checkpoint
+		inv := m.getSelectedInvestigation()
+		if inv != nil && inv.ID == msg.investigationID {
+			return m, approveCheckpointCmd(inv.ID, inv.CurrentCheckpoint)
+		}
+		return m, nil
+
 	case tickMsg:
 		// Periodic refresh for running investigations
 		var cmds []tea.Cmd
@@ -279,6 +314,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle checkpoint 1 review card keyboard
+		if m.isShowingCP1Review() {
+			return m.handleCP1Key(msg)
+		}
+
 		// Handle confirmation dialog
 		if m.showConfirmDialog {
 			switch {
@@ -394,14 +434,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Up):
 			if m.selectedIndex > 0 {
 				m.selectedIndex--
+				m.cp1Loaded = 0 // Reset so cp1 fields reload for new selection
 				// Load data for newly selected investigation
 				inv := m.getSelectedInvestigation()
 				if inv != nil {
-					return m, tea.Batch(
+					cmds := []tea.Cmd{
 						loadAgentStatusesCmd(inv.ID),
 						streamAgentLogsCmd(inv.ID, m.getActiveAgentName()),
 						loadAgentFindingsCmd(inv.ID, m.getActiveAgentName()),
-					)
+					}
+					if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
+						cmds = append(cmds, loadTicketDataCmd(inv.ID))
+					}
+					return m, tea.Batch(cmds...)
 				}
 			}
 			return m, nil
@@ -409,14 +454,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Down):
 			if m.selectedIndex < len(m.investigations)-1 {
 				m.selectedIndex++
+				m.cp1Loaded = 0 // Reset so cp1 fields reload for new selection
 				// Load data for newly selected investigation
 				inv := m.getSelectedInvestigation()
 				if inv != nil {
-					return m, tea.Batch(
+					cmds := []tea.Cmd{
 						loadAgentStatusesCmd(inv.ID),
 						streamAgentLogsCmd(inv.ID, m.getActiveAgentName()),
 						loadAgentFindingsCmd(inv.ID, m.getActiveAgentName()),
-					)
+					}
+					if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
+						cmds = append(cmds, loadTicketDataCmd(inv.ID))
+					}
+					return m, tea.Batch(cmds...)
 				}
 			}
 			return m, nil
@@ -613,6 +663,174 @@ func (m model) submitCreateForm() (tea.Model, tea.Cmd) {
 	context := strings.TrimSpace(m.createContextArea.Value())
 
 	return m, createInvestigationCmd(ticketID, skill, context)
+}
+
+// isShowingCP1Review returns true when the checkpoint 1 review card should be shown
+func (m model) isShowingCP1Review() bool {
+	inv := m.getSelectedInvestigation()
+	if inv == nil {
+		return false
+	}
+	return inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification"
+}
+
+// handleCP1Key handles keyboard input for the checkpoint 1 review card
+func (m model) handleCP1Key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	keyStr := msg.String()
+
+	// Always allow quit
+	if key.Matches(msg, keys.Quit) {
+		return m, tea.Quit
+	}
+
+	// If dropdown is open, handle dropdown navigation FIRST (before sidebar nav)
+	if m.cp1DropdownOpen {
+		options := m.cp1ActiveOptions()
+		switch {
+		case keyStr == "up" || keyStr == "k":
+			if m.cp1DropdownIndex > 0 {
+				m.cp1DropdownIndex--
+			}
+			return m, nil
+		case keyStr == "down" || keyStr == "j":
+			if m.cp1DropdownIndex < len(options)-1 {
+				m.cp1DropdownIndex++
+			}
+			return m, nil
+		case key.Matches(msg, keys.Enter):
+			// Select current option
+			selected := options[m.cp1DropdownIndex]
+			switch m.cp1FocusField {
+			case 0:
+				m.cp1Classification = selected
+			case 1:
+				m.cp1ProductArea = selected
+			case 2:
+				m.cp1Priority = selected
+			}
+			m.cp1DropdownOpen = false
+			return m, nil
+		case key.Matches(msg, keys.Escape):
+			m.cp1DropdownOpen = false
+			return m, nil
+		}
+		return m, nil
+	}
+
+	// Dropdown is closed — handle field navigation and actions
+	switch {
+	case keyStr == "tab":
+		m.cp1FocusField = (m.cp1FocusField + 1) % 3
+		return m, nil
+	case keyStr == "shift+tab":
+		m.cp1FocusField = (m.cp1FocusField + 2) % 3
+		return m, nil
+	case key.Matches(msg, keys.Up) || key.Matches(msg, keys.Down):
+		// Sidebar navigation when dropdown is closed
+		if key.Matches(msg, keys.Up) && m.selectedIndex > 0 {
+			m.selectedIndex--
+			m.cp1Loaded = 0
+		} else if key.Matches(msg, keys.Down) && m.selectedIndex < len(m.investigations)-1 {
+			m.selectedIndex++
+			m.cp1Loaded = 0
+		}
+		inv := m.getSelectedInvestigation()
+		if inv != nil {
+			cmds := []tea.Cmd{
+				loadAgentStatusesCmd(inv.ID),
+				streamAgentLogsCmd(inv.ID, m.getActiveAgentName()),
+				loadAgentFindingsCmd(inv.ID, m.getActiveAgentName()),
+			}
+			if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
+				cmds = append(cmds, loadTicketDataCmd(inv.ID))
+			}
+			return m, tea.Batch(cmds...)
+		}
+		return m, nil
+	case key.Matches(msg, keys.Enter):
+		// Open dropdown for focused field
+		m.cp1DropdownOpen = true
+		// Pre-select the current value in the dropdown
+		options := m.cp1ActiveOptions()
+		currentVal := m.cp1CurrentValue()
+		m.cp1DropdownIndex = 0
+		for i, opt := range options {
+			if opt == currentVal {
+				m.cp1DropdownIndex = i
+				break
+			}
+		}
+		return m, nil
+	case key.Matches(msg, keys.Approve):
+		// Approve with possibly modified values
+		inv := m.getSelectedInvestigation()
+		if inv == nil {
+			return m, nil
+		}
+		td := m.ticketData[inv.ID]
+
+		// Check if any fields were modified
+		modified := false
+		fields := make(map[string]string)
+		if td != nil {
+			if m.cp1Classification != td.Classification {
+				fields["classification"] = m.cp1Classification
+				modified = true
+			}
+			if m.cp1ProductArea != td.ProductArea {
+				fields["product_area"] = m.cp1ProductArea
+				modified = true
+			}
+			if m.cp1Priority != td.Priority {
+				fields["priority"] = m.cp1Priority
+				modified = true
+			}
+		}
+
+		if modified {
+			// First update, then approve (chained via investigationUpdatedMsg)
+			return m, updateInvestigationCmd(inv.ID, fields)
+		}
+		// No modifications, approve directly
+		return m, approveCheckpointCmd(inv.ID, inv.CurrentCheckpoint)
+
+	case key.Matches(msg, keys.Refresh):
+		return m, loadInvestigationsCmd()
+
+	case key.Matches(msg, keys.Debug):
+		m.showDebugOverlay = !m.showDebugOverlay
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// cp1ActiveOptions returns the option list for the currently focused cp1 field
+func (m model) cp1ActiveOptions() []string {
+	switch m.cp1FocusField {
+	case 0:
+		return classificationOptions
+	case 1:
+		return productAreaOptions
+	case 2:
+		return priorityOptions
+	default:
+		return nil
+	}
+}
+
+// cp1CurrentValue returns the current value of the focused cp1 field
+func (m model) cp1CurrentValue() string {
+	switch m.cp1FocusField {
+	case 0:
+		return m.cp1Classification
+	case 1:
+		return m.cp1ProductArea
+	case 2:
+		return m.cp1Priority
+	default:
+		return ""
+	}
 }
 
 func main() {

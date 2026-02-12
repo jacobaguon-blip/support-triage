@@ -11,6 +11,11 @@ import (
 
 var skillOptions = []string{"troubleshoot", "feature-request", "kb-article", "research"}
 
+// Checkpoint 1 editable field options
+var classificationOptions = []string{"product_bug", "connector_bug", "feature_request"}
+var productAreaOptions = []string{"Platform / UI", "Connectors", "Access Profiles", "Access Requests", "Access Reviews", "API / Terraform", "Automations", "Notifications", "Policies", "RBAC", "Thomas - AI Agent", "External Ticketing", "Other"}
+var priorityOptions = []string{"P1", "P2", "P3", "P4"}
+
 // TabType represents which tab is active
 type TabType int
 
@@ -83,6 +88,19 @@ type CustomerResponse struct {
 	PostedToPylon bool
 }
 
+// TicketData from ticket-data.json
+type TicketData struct {
+	TicketID       int    `json:"ticket_id"`
+	Title          string `json:"title"`
+	Body           string `json:"body"`
+	CustomerName   string `json:"customer_name"`
+	Classification string `json:"classification"`
+	ProductArea    string `json:"product_area"`
+	Priority       string `json:"priority"`
+	ConnectorName  *string `json:"connector_name"`
+	PylonLink      string `json:"pylon_link"`
+}
+
 // model is the main application state
 type model struct {
 	// Layout dimensions
@@ -117,6 +135,16 @@ type model struct {
 	showConfirmDialog bool
 	confirmAction     string // "post" or "save"
 	confirmMessage    string
+
+	// Checkpoint 1 review state
+	ticketData        map[int]*TicketData
+	cp1FocusField     int    // 0=classification, 1=productArea, 2=priority
+	cp1DropdownOpen   bool
+	cp1DropdownIndex  int
+	cp1Classification string // Editable copy
+	cp1ProductArea    string // Editable copy
+	cp1Priority       string // Editable copy
+	cp1Loaded         int    // Investigation ID that cp1 fields are loaded for
 
 	// Debug overlay
 	showDebugOverlay bool

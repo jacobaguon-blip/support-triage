@@ -217,6 +217,67 @@ func parseMarkdownFindings(content string) []Finding {
 	return findings
 }
 
+// Load ticket data from ticket-data.json
+func loadTicketDataCmd(investigationID int) tea.Cmd {
+	return func() tea.Msg {
+		tdPath := fmt.Sprintf(
+			"/Users/jacobaguon/support-triage/investigations/%d/ticket-data.json",
+			investigationID,
+		)
+
+		if _, err := os.Stat(tdPath); os.IsNotExist(err) {
+			return ticketDataLoadedMsg{
+				investigationID: investigationID,
+				data:            nil,
+			}
+		}
+
+		content, err := os.ReadFile(tdPath)
+		if err != nil {
+			return errMsg{err}
+		}
+
+		var td TicketData
+		if err := json.Unmarshal(content, &td); err != nil {
+			return errMsg{fmt.Errorf("failed to parse ticket-data.json: %w", err)}
+		}
+
+		return ticketDataLoadedMsg{
+			investigationID: investigationID,
+			data:            &td,
+		}
+	}
+}
+
+// Update investigation fields via Express API
+func updateInvestigationCmd(investigationID int, fields map[string]string) tea.Cmd {
+	return func() tea.Msg {
+		body, err := json.Marshal(fields)
+		if err != nil {
+			return investigationUpdatedMsg{investigationID: investigationID, err: err}
+		}
+
+		url := fmt.Sprintf("%s/api/investigations/%d", apiBase, investigationID)
+		req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
+		if err != nil {
+			return investigationUpdatedMsg{investigationID: investigationID, err: err}
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return investigationUpdatedMsg{investigationID: investigationID, err: fmt.Errorf("API error: %w", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return investigationUpdatedMsg{investigationID: investigationID, err: fmt.Errorf("update failed: HTTP %d", resp.StatusCode)}
+		}
+
+		return investigationUpdatedMsg{investigationID: investigationID, err: nil}
+	}
+}
+
 // Approve checkpoint via Express API
 func approveCheckpointCmd(investigationID int, checkpoint string) tea.Cmd {
 	return func() tea.Msg {
