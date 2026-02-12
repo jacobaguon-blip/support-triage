@@ -47,6 +47,27 @@
   --status-gray-bg: #F3F4F6;
   --status-purple-bg: #F5F3FF;
 
+  /* ===== Status Borders & Accents ===== */
+  --status-green-border: #86efac;
+  --status-red-border: #fca5a5;
+  --status-yellow-border: #fde047;
+  --status-green-dark: #065f46;
+  --status-red-dark: #991b1b;
+  --status-yellow-dark: #92400e;
+  --accent-orange: #F97316;
+
+  /* ===== Severity Colors ===== */
+  --severity-critical: #ef4444;
+  --severity-high: #f97316;
+  --severity-medium: #eab308;
+  --severity-low: #6b7280;
+
+  /* ===== Terminal / Code ===== */
+  --terminal-bg: #1E293B;
+  --terminal-text: #E2E8F0;
+  --accent-purple-light: #a78bfa;
+  --c1-primary-dark: #4338CA;
+
   /* ===== Shadows (C1 subtle depth) ===== */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);

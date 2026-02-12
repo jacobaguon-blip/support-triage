@@ -101,7 +101,7 @@
 
 .phase-views-badge-connector {
   background-color: rgba(168, 85, 247, 0.2);
-  color: #a855f7;
+  color: var(--accent-purple);
 }
 
 .phase-views-badge-priority-urgent {
@@ -281,7 +281,7 @@
 }
 
 .phase-views-button:active {
-  background-color: #4338CA;
+  background-color: var(--c1-primary-dark);
 }
 
 .phase-views-button-secondary {

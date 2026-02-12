@@ -93,12 +93,12 @@
 
 .version-node__badge--current {
   background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
+  color: var(--accent-green);
 }
 
 .version-node__badge--anchor {
   background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
+  color: var(--status-yellow-border);
 }
 
 .version-node__label {
@@ -166,7 +166,7 @@
 
 .version-restore-dialog__btn--rollback {
   background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  color: var(--accent-red);
   border-color: rgba(239, 68, 68, 0.3);
 }
 
@@ -176,7 +176,7 @@
 
 .version-restore-dialog__btn--refocus {
   background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  color: var(--status-yellow-border);
   border-color: rgba(245, 158, 11, 0.3);
 }
 

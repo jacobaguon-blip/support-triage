@@ -278,7 +278,7 @@
 }
 
 .status-badge.status-new:hover {
-  background-color: #E5E7EB;
+  background-color: var(--border-color);
 }
 
 .status-badge.status-in_progress {
@@ -287,7 +287,7 @@
 }
 
 .status-badge.status-in_progress:hover {
-  background-color: #DBEAFE;
+  background-color: var(--status-blue-bg);
 }
 
 .status-badge.status-review {
@@ -296,7 +296,7 @@
 }
 
 .status-badge.status-review:hover {
-  background-color: #FEF3C7;
+  background-color: var(--status-yellow-bg);
 }
 
 .status-badge.status-done {
@@ -305,7 +305,7 @@
 }
 
 .status-badge.status-done:hover {
-  background-color: #D1FAE5;
+  background-color: var(--status-green-bg);
 }
 
 /* ===== Priority, Category, Requester, Date Styles ===== */

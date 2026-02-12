@@ -185,7 +185,7 @@
 }
 
 .admin-stat-card--purple::before {
-  background-color: #A78BFA;
+  background-color: var(--accent-purple-light);
 }
 
 .admin-stat-card__value {
@@ -612,13 +612,11 @@
 }
 
 /* Responsive Design */
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
   .capability-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-}
 
-@media (max-width: 900px) {
   .admin-stats {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -661,8 +659,12 @@
     padding: 16px;
   }
 
+  .admin-portal__title {
+    font-size: 16px;
+  }
+
   .admin-stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
     gap: 12px;
     margin-bottom: 24px;
   }
@@ -672,7 +674,7 @@
   }
 
   .admin-stat-card__value {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .admin-stat-card__label {
@@ -683,13 +685,21 @@
     margin-bottom: 24px;
   }
 
+  .admin-section__title {
+    font-size: 14px;
+  }
+
   .capability-grid {
     gap: 12px;
     margin-bottom: 20px;
   }
 
   .capability-card {
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .capability-card__title {
+    font-size: 13px;
   }
 
   .team-grid {
@@ -697,7 +707,7 @@
   }
 
   .team-card {
-    padding: 20px;
+    padding: 16px;
   }
 
   .sprint-header {
@@ -714,52 +724,8 @@
   }
 
   .kanban-column {
-    min-width: 240px;
-    gap: 10px;
-  }
-
-  .kanban-item {
-    padding: 10px;
-  }
-
-  .kanban-item__title {
-    font-size: 12px;
-    margin-bottom: 6px;
-  }
-}
-
-@media (max-width: 480px) {
-  .admin-portal__title {
-    font-size: 16px;
-  }
-
-  .admin-stats {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .admin-stat-card__value {
-    font-size: 20px;
-  }
-
-  .admin-section__title {
-    font-size: 14px;
-  }
-
-  .capability-card {
-    padding: 12px;
-  }
-
-  .capability-card__title {
-    font-size: 13px;
-  }
-
-  .team-card {
-    padding: 16px;
-  }
-
-  .kanban-column {
     min-width: 200px;
+    gap: 10px;
   }
 
   .kanban-column__header {
@@ -772,12 +738,15 @@
 
   .kanban-item__title {
     font-size: 11px;
+    margin-bottom: 6px;
   }
 
   .kanban-item__badge {
     font-size: 9px;
   }
 }
+
+/* 480px rules consolidated into 768px above */
 
 /* Dark Mode Support (Optional - placeholder for future dark theme) */
 @media (prefers-color-scheme: dark) {

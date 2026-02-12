@@ -27,7 +27,7 @@
 }
 
 .backtrack-bar__label strong {
-  color: #fbbf24;
+  color: var(--status-yellow-border);
 }
 
 .backtrack-bar__hint {
@@ -52,7 +52,7 @@
 .backtrack-bar__btn--clear {
   background: transparent;
   border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  color: var(--status-yellow-border);
 }
 
 .backtrack-bar__btn--clear:hover {

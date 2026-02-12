@@ -54,8 +54,8 @@
   letter-spacing: 0.5px;
 }
 
-.bubble__badge--agent { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
-.bubble__badge--phase { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+.bubble__badge--agent { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple-light); }
+.bubble__badge--phase { background: rgba(107, 114, 128, 0.2); color: var(--text-muted); }
 .bubble__badge--file { background: rgba(107, 114, 128, 0.15); color: var(--text-muted); font-family: monospace; }
 .bubble__badge--sources { background: rgba(74, 158, 255, 0.15); color: var(--accent-blue); font-size: 9px; }
 .bubble__badge--action { font-weight: 600; }
@@ -98,10 +98,10 @@
   margin-top: 4px;
 }
 
-.bubble-avatar--customer { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-.bubble-avatar--agent { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
-.bubble-avatar--tse { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-.bubble-avatar--system { background: rgba(107, 114, 128, 0.2); color: #9ca3af; }
+.bubble-avatar--customer { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+.bubble-avatar--agent { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple-light); }
+.bubble-avatar--tse { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+.bubble-avatar--system { background: rgba(107, 114, 128, 0.2); color: var(--text-muted); }
 
 /* ============ CUSTOMER BUBBLE ============ */
 .bubble--customer {
@@ -313,13 +313,13 @@
 .inline-source--linear {
   background: rgba(94, 106, 210, 0.12);
   border-color: rgba(94, 106, 210, 0.25);
-  color: #5E6AD2;
+  color: var(--c1-primary);
 }
 
 .inline-source--slack {
   background: rgba(224, 30, 90, 0.1);
   border-color: rgba(224, 30, 90, 0.2);
-  color: #E01E5A;
+  color: var(--accent-red);
 }
 
 .inline-source--pylon {
@@ -331,13 +331,13 @@
 .inline-source--file {
   background: rgba(240, 180, 41, 0.1);
   border-color: rgba(240, 180, 41, 0.2);
-  color: #B45309;
+  color: var(--status-yellow-dark);
 }
 
 .inline-source--analysis {
   background: rgba(245, 158, 11, 0.1);
   border-color: rgba(245, 158, 11, 0.2);
-  color: #D97706;
+  color: var(--accent-yellow);
 }
 
 /* ── Responsive ── */

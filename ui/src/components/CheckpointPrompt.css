@@ -71,7 +71,7 @@
 }
 
 .checkpoint-prompt__btn--primary:hover {
-  background: #059669;
+  background: var(--accent-green);
 }
 
 .checkpoint-prompt__btn--secondary {
@@ -93,7 +93,7 @@
 
 .checkpoint-prompt__btn--danger:hover {
   border-color: rgba(239, 68, 68, 0.4);
-  color: #f87171;
+  color: var(--accent-red);
   background: rgba(239, 68, 68, 0.08);
 }
 

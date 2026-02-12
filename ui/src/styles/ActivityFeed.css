@@ -68,14 +68,14 @@
 
 /* Activity Container (Terminal) */
 .activity-feed-container {
-  background-color: #1E293B;
+  background-color: var(--terminal-bg);
   max-height: 400px;
   overflow-y: scroll;
   overflow-x: hidden;
   font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.6;
-  color: #E2E8F0;
+  color: var(--terminal-text);
   padding: 12px 0;
 }
 
@@ -168,7 +168,7 @@
 
 .activity-tool-call .activity-prefix,
 .activity-tool-call .activity-message {
-  color: #a78bfa;
+  color: var(--accent-purple-light);
 }
 
 .activity-output .activity-message {
@@ -224,7 +224,7 @@
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .activity-feed-container {
     max-height: 300px;
     font-size: 11px;
@@ -249,7 +249,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .activity-feed-container {
     max-height: 250px;
     font-size: 10px;
