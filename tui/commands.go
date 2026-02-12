@@ -253,6 +253,21 @@ func loadTicketDataCmd(investigationID int) tea.Cmd {
 	}
 }
 
+// Load combined phase1 findings
+func loadPhase1FindingsCmd(investigationID int) tea.Cmd {
+	return func() tea.Msg {
+		path := resolveInvestigationFile(investigationID, "phase1-findings.md")
+		if path == "" {
+			return phase1FindingsLoadedMsg{investigationID: investigationID, content: ""}
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return phase1FindingsLoadedMsg{investigationID: investigationID, content: ""}
+		}
+		return phase1FindingsLoadedMsg{investigationID: investigationID, content: string(content)}
+	}
+}
+
 // Update investigation fields via Express API
 func updateInvestigationCmd(investigationID int, fields map[string]string) tea.Cmd {
 	return func() tea.Msg {

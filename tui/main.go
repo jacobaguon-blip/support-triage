@@ -98,6 +98,7 @@ func initialModel() model {
 		summaries:         make(map[int]*InvestigationSummary),
 		customerResponses: make(map[int]*CustomerResponse),
 		ticketData:        make(map[int]*TicketData),
+		phase1Findings:    make(map[int]string),
 		spinner:           s,
 		responseTextarea:  ta,
 		loading:           true,
@@ -159,6 +160,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Load ticket data if at checkpoint 1
 			if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
 				cmds = append(cmds, loadTicketDataCmd(inv.ID))
+			}
+			// Load phase1 findings for complete investigations (no per-agent data)
+			if inv.Status == "complete" {
+				cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
 			}
 			return m, tea.Batch(cmds...)
 		}
@@ -268,6 +273,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cp1DropdownIndex = 0
 				m.cp1Loaded = msg.investigationID
 			}
+		}
+		return m, nil
+
+	case phase1FindingsLoadedMsg:
+		if msg.content != "" {
+			m.phase1Findings[msg.investigationID] = msg.content
 		}
 		return m, nil
 
@@ -446,6 +457,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
 						cmds = append(cmds, loadTicketDataCmd(inv.ID))
 					}
+					if inv.Status == "complete" {
+						cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
+					}
 					return m, tea.Batch(cmds...)
 				}
 			}
@@ -465,6 +479,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
 						cmds = append(cmds, loadTicketDataCmd(inv.ID))
+					}
+					if inv.Status == "complete" {
+						cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
 					}
 					return m, tea.Batch(cmds...)
 				}
@@ -743,6 +760,9 @@ func (m model) handleCP1Key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
 				cmds = append(cmds, loadTicketDataCmd(inv.ID))
+			}
+			if inv.Status == "complete" {
+				cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
 			}
 			return m, tea.Batch(cmds...)
 		}

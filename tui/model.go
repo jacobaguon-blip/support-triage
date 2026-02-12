@@ -136,6 +136,9 @@ type model struct {
 	confirmAction     string // "post" or "save"
 	confirmMessage    string
 
+	// Phase 1 combined findings (investigation_id -> content)
+	phase1Findings map[int]string
+
 	// Checkpoint 1 review state
 	ticketData        map[int]*TicketData
 	cp1FocusField     int    // 0=classification, 1=productArea, 2=priority

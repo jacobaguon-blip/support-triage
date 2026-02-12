@@ -469,6 +469,34 @@ func (m model) renderAgentView(width, height int) string {
 	agentState := m.getAgentState(inv.ID, agentName)
 
 	if agentState == nil {
+		// For complete investigations with no per-agent data, show phase1 findings
+		if inv.Status == "complete" {
+			p1 := m.phase1Findings[inv.ID]
+			if p1 != "" {
+				header := sectionHeaderStyle.Render(fmt.Sprintf("CONTEXT GATHERING FINDINGS (combined)"))
+				hint := dimmedTextStyle.Render("Individual agent data not available. Showing combined phase 1 findings.\nPress [5] for Summary tab.")
+
+				contentView := lipgloss.NewStyle().
+					Width(width - 8).
+					Height(height - 8).
+					Render(p1)
+
+				inner := lipgloss.JoinVertical(lipgloss.Left, header, hint, "", contentView)
+				return contentPanelStyle.
+					Width(width - 4).
+					Height(height - 2).
+					Render(inner)
+			}
+			// Complete but no findings file either
+			placeholder := emptyStateStyle.Render(
+				fmt.Sprintf("Investigation complete — no per-agent data for %s.\n\nPress [5] to view the Summary tab.", agentName),
+			)
+			return contentPanelStyle.
+				Width(width - 4).
+				Height(height - 2).
+				Render(placeholder)
+		}
+
 		// Show loading state or "not started" message
 		var placeholder string
 		if m.loading {

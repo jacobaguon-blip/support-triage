@@ -71,6 +71,11 @@ type investigationUpdatedMsg struct {
 	err             error
 }
 
+type phase1FindingsLoadedMsg struct {
+	investigationID int
+	content         string
+}
+
 type errMsg struct {
 	err error
 }
