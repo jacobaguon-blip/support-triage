@@ -56,6 +56,11 @@ type responsePostedMsg struct {
 	investigationID int
 }
 
+type investigationCreatedMsg struct {
+	investigationID int
+	err             error
+}
+
 type errMsg struct {
 	err error
 }

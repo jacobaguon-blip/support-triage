@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -44,6 +47,7 @@ var keys = struct {
 	Yes      key.Binding
 	No       key.Binding
 	Debug    key.Binding
+	New      key.Binding
 }{
 	Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c")),
 	Up:       key.NewBinding(key.WithKeys("up", "k")),
@@ -69,6 +73,7 @@ var keys = struct {
 	Yes:      key.NewBinding(key.WithKeys("y")),
 	No:       key.NewBinding(key.WithKeys("n")),
 	Debug:    key.NewBinding(key.WithKeys("?")),
+	New:      key.NewBinding(key.WithKeys("n")),
 }
 
 func initialModel() model {
@@ -80,6 +85,14 @@ func initialModel() model {
 	ta.Placeholder = "Customer response..."
 	ta.Focus()
 
+	ti := textinput.New()
+	ti.Placeholder = "Pylon ticket ID (e.g., 8314)"
+	ti.CharLimit = 10
+
+	ca := textarea.New()
+	ca.Placeholder = "Optional context or file paths..."
+	ca.SetHeight(4)
+
 	return model{
 		agents:            make(map[int]map[string]*AgentState),
 		summaries:         make(map[int]*InvestigationSummary),
@@ -90,6 +103,8 @@ func initialModel() model {
 		showDebugOverlay:  os.Getenv("TUI_DEBUG") == "1",
 		buildVersion:      buildVersion,
 		buildTime:         buildTime,
+		createTicketInput: ti,
+		createContextArea: ca,
 	}
 }
 
@@ -222,6 +237,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			loadAgentStatusesCmd(msg.investigationID),
 		)
 
+	case investigationCreatedMsg:
+		m.creatingInProgress = false
+		if msg.err != nil {
+			m.createError = msg.err.Error()
+			return m, nil
+		}
+		// Success: close form, reload investigations
+		m.showCreateForm = false
+		m.createError = ""
+		return m, loadInvestigationsCmd()
+
 	case tickMsg:
 		// Periodic refresh for running investigations
 		var cmds []tea.Cmd
@@ -274,6 +300,67 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, nil
+		}
+
+		// Handle create form input
+		if m.showCreateForm && !m.creatingInProgress {
+			switch {
+			case key.Matches(msg, keys.Escape):
+				m.showCreateForm = false
+				m.createError = ""
+				return m, nil
+
+			case key.Matches(msg, keys.Save):
+				// Ctrl+S submits
+				return m.submitCreateForm()
+
+			case key.Matches(msg, keys.Enter):
+				if m.createFocusField == 1 {
+					// Cycle skill option when on skill field
+					m.createSkill = (m.createSkill + 1) % len(skillOptions)
+					return m, nil
+				}
+				// Submit from ticket or context field
+				return m.submitCreateForm()
+
+			default:
+				keyStr := msg.String()
+				if keyStr == "tab" || keyStr == "shift+tab" {
+					// Cycle focus between fields
+					if keyStr == "tab" {
+						m.createFocusField = (m.createFocusField + 1) % 3
+					} else {
+						m.createFocusField = (m.createFocusField + 2) % 3
+					}
+					// Update focus state
+					if m.createFocusField == 0 {
+						m.createTicketInput.Focus()
+						m.createContextArea.Blur()
+					} else if m.createFocusField == 1 {
+						m.createTicketInput.Blur()
+						m.createContextArea.Blur()
+					} else {
+						m.createTicketInput.Blur()
+						m.createContextArea.Focus()
+					}
+					return m, nil
+				}
+
+				// Route input to focused field
+				if m.createFocusField == 0 {
+					m.createTicketInput, cmd = m.createTicketInput.Update(msg)
+					return m, cmd
+				} else if m.createFocusField == 1 {
+					// Skill field: space or arrows cycle options
+					if keyStr == " " || keyStr == "left" || keyStr == "right" {
+						m.createSkill = (m.createSkill + 1) % len(skillOptions)
+					}
+					return m, nil
+				} else {
+					m.createContextArea, cmd = m.createContextArea.Update(msg)
+					return m, cmd
+				}
+			}
 		}
 
 		// Handle textarea input when editing
@@ -485,6 +572,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case key.Matches(msg, keys.New):
+			m.showCreateForm = true
+			m.createFocusField = 0
+			m.createTicketInput.SetValue("")
+			m.createContextArea.SetValue("")
+			m.createSkill = 0
+			m.createError = ""
+			m.creatingInProgress = false
+			cmd = m.createTicketInput.Focus()
+			return m, cmd
+
 		case key.Matches(msg, keys.Debug):
 			m.showDebugOverlay = !m.showDebugOverlay
 			return m, nil
@@ -492,6 +590,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m model) submitCreateForm() (tea.Model, tea.Cmd) {
+	ticketID := strings.TrimSpace(m.createTicketInput.Value())
+
+	if ticketID == "" {
+		m.createError = "Ticket ID is required"
+		return m, nil
+	}
+
+	if _, err := strconv.Atoi(ticketID); err != nil {
+		m.createError = "Ticket ID must be a number"
+		return m, nil
+	}
+
+	m.createError = ""
+	m.creatingInProgress = true
+
+	skill := skillOptions[m.createSkill]
+	context := strings.TrimSpace(m.createContextArea.Value())
+
+	return m, createInvestigationCmd(ticketID, skill, context)
 }
 
 func main() {

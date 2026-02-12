@@ -5,8 +5,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 )
+
+var skillOptions = []string{"troubleshoot", "feature-request", "kb-article", "research"}
 
 // TabType represents which tab is active
 type TabType int
@@ -119,6 +122,15 @@ type model struct {
 	showDebugOverlay bool
 	buildVersion     string
 	buildTime        string
+
+	// Create form
+	showCreateForm     bool
+	createTicketInput  textinput.Model
+	createContextArea  textarea.Model
+	createSkill        int // index into skillOptions
+	createFocusField   int // 0=ticket, 1=skill, 2=context
+	createError        string
+	creatingInProgress bool
 }
 
 // Helper methods

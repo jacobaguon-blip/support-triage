@@ -21,6 +21,11 @@ func (m model) View() string {
 		return m.renderConfirmDialog()
 	}
 
+	// Render create form overlay if shown
+	if m.showCreateForm {
+		return m.renderCreateForm()
+	}
+
 	// Title bar
 	title := titleStyle.Width(m.width).Render("Support Triage")
 
@@ -654,15 +659,15 @@ func (m model) renderActionBar() string {
 		debugHint = " • ?: debug"
 	}
 	if m.activeTab >= TabSlack && m.activeTab <= TabCodebase {
-		right = "↑↓/jk: nav • 1-5: tabs • PgUp/PgDn: scroll • r: refresh • a: approve • q: quit" + debugHint
+		right = "↑↓/jk: nav • 1-5: tabs • PgUp/PgDn: scroll • n: new • r: refresh • a: approve • q: quit" + debugHint
 	} else if m.activeTab == TabSummary {
 		if m.editingResponse {
 			right = "Esc: cancel edit • 1-5: tabs • q: quit" + debugHint
 		} else {
-			right = "↑↓/jk: nav • 1-5: tabs • e: edit • c: copy • p: post • r: refresh • q: quit" + debugHint
+			right = "↑↓/jk: nav • 1-5: tabs • e: edit • c: copy • p: post • n: new • r: refresh • q: quit" + debugHint
 		}
 	} else {
-		right = "↑↓/jk: nav • 1-5: tabs • r: refresh • a: approve • q: quit" + debugHint
+		right = "↑↓/jk: nav • 1-5: tabs • n: new • r: refresh • a: approve • q: quit" + debugHint
 	}
 
 	leftPart := actionBarStyle.Width(m.width/2 - 2).Render(left)
@@ -725,6 +730,107 @@ func (m model) renderConfirmDialog() string {
 	centered := lipgloss.Place(
 		m.width,
 		m.height-2, // Leave room for title
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		centered,
+	)
+}
+
+func (m model) renderCreateForm() string {
+	dialogWidth := 70
+	dialogHeight := 22
+
+	title := titleStyle.Width(m.width).Render("Support Triage")
+
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(c1Primary).
+		BorderBackground(bgPrimary).
+		Background(bgPrimary).
+		Padding(1, 2).
+		Width(dialogWidth).
+		Height(dialogHeight)
+
+	dialogHeader := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(c1Primary).
+		Render("New Investigation")
+
+	// Ticket ID field
+	ticketLabel := "  Ticket ID"
+	if m.createFocusField == 0 {
+		ticketLabel = "▸ Ticket ID"
+	}
+	ticketLabelRendered := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).Render(ticketLabel)
+	ticketField := m.createTicketInput.View()
+
+	// Skill selector
+	skillLabel := "  Skill"
+	if m.createFocusField == 1 {
+		skillLabel = "▸ Skill"
+	}
+	skillLabelRendered := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).Render(skillLabel)
+	var skillParts []string
+	for i, s := range skillOptions {
+		if i == m.createSkill {
+			skillParts = append(skillParts, activeTabStyle.Render(" "+s+" "))
+		} else {
+			skillParts = append(skillParts, inactiveTabStyle.Render(" "+s+" "))
+		}
+	}
+	skillSelector := lipgloss.JoinHorizontal(lipgloss.Top, skillParts...)
+
+	// Context field
+	contextLabel := "  Context (optional)"
+	if m.createFocusField == 2 {
+		contextLabel = "▸ Context (optional)"
+	}
+	contextLabelRendered := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).Render(contextLabel)
+	contextField := m.createContextArea.View()
+
+	// Error message
+	var errorLine string
+	if m.createError != "" {
+		errorLine = lipgloss.NewStyle().Foreground(statusError).Bold(true).Render("Error: " + m.createError)
+	}
+
+	// Footer
+	var footer string
+	if m.creatingInProgress {
+		footer = m.spinner.View() + " Creating investigation..."
+	} else {
+		footer = dimmedTextStyle.Render("Tab: next field • Space: cycle skill • Enter/Ctrl+S: submit • Esc: cancel")
+	}
+
+	dialogContent := lipgloss.JoinVertical(
+		lipgloss.Left,
+		dialogHeader,
+		"",
+		ticketLabelRendered,
+		ticketField,
+		"",
+		skillLabelRendered,
+		skillSelector,
+		"",
+		contextLabelRendered,
+		contextField,
+		"",
+		errorLine,
+		footer,
+	)
+
+	dialog := dialogStyle.Render(dialogContent)
+
+	centered := lipgloss.Place(
+		m.width,
+		m.height-2,
 		lipgloss.Center,
 		lipgloss.Center,
 		dialog,

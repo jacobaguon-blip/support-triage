@@ -412,6 +412,24 @@ func copyToClipboardCmd(content string) tea.Cmd {
 	}
 }
 
+// Create a new investigation via CLI
+func createInvestigationCmd(ticketID, skill, context string) tea.Cmd {
+	return func() tea.Msg {
+		args := []string{"create", "--ticket", ticketID, "--skill", skill}
+		if context != "" {
+			args = append(args, "--context", context)
+		}
+
+		cmd := exec.Command(cliPath, args...)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return investigationCreatedMsg{err: fmt.Errorf("create failed: %w\n%s", err, string(output))}
+		}
+
+		return investigationCreatedMsg{investigationID: 0, err: nil}
+	}
+}
+
 // Periodic refresh tick
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
