@@ -19,6 +19,24 @@ const apiBase = "http://localhost:3001"
 
 const cliPath = "/Users/jacobaguon/support-triage/bin/triage"
 
+const investigationsDir = "/Users/jacobaguon/support-triage/investigations"
+
+// resolveInvestigationFile finds a file in the investigation directory,
+// checking the root dir first then the investigation-1/ subdirectory.
+func resolveInvestigationFile(investigationID int, filename string) string {
+	// Check root: investigations/{id}/{filename}
+	rootPath := fmt.Sprintf("%s/%d/%s", investigationsDir, investigationID, filename)
+	if _, err := os.Stat(rootPath); err == nil {
+		return rootPath
+	}
+	// Fallback: investigations/{id}/investigation-1/{filename}
+	subPath := fmt.Sprintf("%s/%d/investigation-1/%s", investigationsDir, investigationID, filename)
+	if _, err := os.Stat(subPath); err == nil {
+		return subPath
+	}
+	return "" // Not found
+}
+
 // Load all investigations from CLI
 func loadInvestigationsCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -99,14 +117,9 @@ func loadAgentStatusesCmd(investigationID int) tea.Cmd {
 // Stream agent logs (read last N lines)
 func streamAgentLogsCmd(investigationID int, agentName string) tea.Cmd {
 	return func() tea.Msg {
-		logPath := fmt.Sprintf(
-			"/Users/jacobaguon/support-triage/investigations/%d/investigation-1/%s-agent.log",
-			investigationID,
-			strings.ToLower(agentName),
-		)
-
-		// Check if file exists
-		if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		logFile := fmt.Sprintf("%s-agent.log", strings.ToLower(agentName))
+		logPath := resolveInvestigationFile(investigationID, logFile)
+		if logPath == "" {
 			return agentLogsLoadedMsg{
 				investigationID: investigationID,
 				agentName:       agentName,
@@ -153,14 +166,9 @@ func streamAgentLogsCmd(investigationID int, agentName string) tea.Cmd {
 // Load findings from markdown file
 func loadAgentFindingsCmd(investigationID int, agentName string) tea.Cmd {
 	return func() tea.Msg {
-		findingsPath := fmt.Sprintf(
-			"/Users/jacobaguon/support-triage/investigations/%d/investigation-1/%s-findings.md",
-			investigationID,
-			strings.ToLower(agentName),
-		)
-
-		// Check if file exists
-		if _, err := os.Stat(findingsPath); os.IsNotExist(err) {
+		findingsFile := fmt.Sprintf("%s-findings.md", strings.ToLower(agentName))
+		findingsPath := resolveInvestigationFile(investigationID, findingsFile)
+		if findingsPath == "" {
 			return agentFindingsLoadedMsg{
 				investigationID: investigationID,
 				agentName:       agentName,
@@ -220,12 +228,8 @@ func parseMarkdownFindings(content string) []Finding {
 // Load ticket data from ticket-data.json
 func loadTicketDataCmd(investigationID int) tea.Cmd {
 	return func() tea.Msg {
-		tdPath := fmt.Sprintf(
-			"/Users/jacobaguon/support-triage/investigations/%d/ticket-data.json",
-			investigationID,
-		)
-
-		if _, err := os.Stat(tdPath); os.IsNotExist(err) {
+		tdPath := resolveInvestigationFile(investigationID, "ticket-data.json")
+		if tdPath == "" {
 			return ticketDataLoadedMsg{
 				investigationID: investigationID,
 				data:            nil,
@@ -301,13 +305,8 @@ func approveCheckpointCmd(investigationID int, checkpoint string) tea.Cmd {
 // Load investigation summary
 func loadSummaryCmd(investigationID int) tea.Cmd {
 	return func() tea.Msg {
-		summaryPath := fmt.Sprintf(
-			"/Users/jacobaguon/support-triage/investigations/%d/investigation-1/summary.md",
-			investigationID,
-		)
-
-		// Check if file exists
-		if _, err := os.Stat(summaryPath); os.IsNotExist(err) {
+		summaryPath := resolveInvestigationFile(investigationID, "summary.md")
+		if summaryPath == "" {
 			return summaryLoadedMsg{
 				investigationID: investigationID,
 				summary:         nil,
@@ -333,13 +332,8 @@ func loadSummaryCmd(investigationID int) tea.Cmd {
 // Load customer response
 func loadCustomerResponseCmd(investigationID int) tea.Cmd {
 	return func() tea.Msg {
-		responsePath := fmt.Sprintf(
-			"/Users/jacobaguon/support-triage/investigations/%d/investigation-1/customer-response.md",
-			investigationID,
-		)
-
-		// Check if file exists
-		if _, err := os.Stat(responsePath); os.IsNotExist(err) {
+		responsePath := resolveInvestigationFile(investigationID, "customer-response.md")
+		if responsePath == "" {
 			return customerResponseLoadedMsg{
 				investigationID: investigationID,
 				response:        nil,
@@ -426,10 +420,11 @@ func parseSummaryMarkdown(content string) *InvestigationSummary {
 // Save edited customer response
 func saveCustomerResponseCmd(investigationID int, content string) tea.Cmd {
 	return func() tea.Msg {
-		responsePath := fmt.Sprintf(
-			"/Users/jacobaguon/support-triage/investigations/%d/investigation-1/customer-response.md",
-			investigationID,
-		)
+		responsePath := resolveInvestigationFile(investigationID, "customer-response.md")
+		if responsePath == "" {
+			// Default to root dir for new saves
+			responsePath = fmt.Sprintf("%s/%d/customer-response.md", investigationsDir, investigationID)
+		}
 
 		err := os.WriteFile(responsePath, []byte(content), 0644)
 		if err != nil {
