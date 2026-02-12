@@ -456,7 +456,7 @@ export async function runPhase1(ticketId, investigationDir, dbHelpers, runNumber
     writeActivity(investigationDir, 'phase1', 'tool_call', `Searching Linear for issues related to: "${td.title}"`)
     writeActivity(investigationDir, 'phase1', 'tool_call', `Searching Slack for discussions about ${td.customer_name}`)
 
-    const prompt = `You are a ConductorOne support investigator. Research this ticket using Linear and Slack MCP tools.
+    const prompt = `You are a ConductorOne support investigator. Research this ticket using available MCP tools.
 
 TICKET #${ticketId}
 Customer: ${td.customer_name}
@@ -468,21 +468,37 @@ Body: ${td.body}
 
 ${localContext ? `LOCAL INVESTIGATION FILES (from working folder):\n${localContext}\n` : ''}
 
-Search for:
-1. Similar Linear issues (search by keywords from the title and body)
-2. Slack discussions about this customer or issue
-3. Known workarounds or related engineering work
-4. Cross-reference with the local investigation files above
+RESEARCH INSTRUCTIONS — follow these steps in order:
 
-IMPORTANT: For EVERY finding or claim, cite the source in this format:
-  [Source: Linear ENG-123] or [Source: Slack #channel-name] or [Source: local/filename.ext]
+Step 1: Search Pylon for related issues
+- Use pylon_search_issues to find similar tickets. Try filtering by tags or account_id if available.
+- If a filter returns an error, try a different filter or use pylon_list_issues with a recent time range.
+- Limit: max 3 tool calls for Pylon.
 
-Write structured markdown findings with these sections:
-## Linear Issues Found
-(List each issue with ID, title, status, and relevance. Cite [Source: Linear TEAM-###] for each.)
+Step 2: Search Slack for context
+- Use slack_list_channels (limit 5) to find relevant channels.
+- Then use slack_get_channel_history on at most 2 promising channels (limit 10 messages each).
+- Do NOT iterate through all channels. Pick the most relevant ones by name.
+- Limit: max 4 tool calls for Slack.
+
+Step 3: Summarize local investigation files
+- Review the local files provided above (if any) and summarize key findings.
+
+CONSTRAINTS:
+- Make at most 10 MCP tool calls total. Do not loop or retry failed calls.
+- If a tool is unavailable or returns an error, note it and move on immediately.
+- Do not search for messages by iterating through every channel.
+- Finish within a reasonable time — prefer breadth over depth.
+
+CITATION FORMAT: For EVERY finding, cite the source:
+  [Source: Pylon #1234] or [Source: Slack #channel-name] or [Source: local/filename.ext]
+
+Write structured markdown findings:
+## Pylon Issues Found
+(List related tickets with ID, title, status, relevance. Cite [Source: Pylon #ID] for each.)
 
 ## Slack Discussions
-(Summarize relevant threads. Cite [Source: Slack #channel-name, date] for each.)
+(Summarize relevant threads from at most 2 channels. Cite [Source: Slack #channel-name] for each.)
 
 ## Local Investigation Context
 (Summarize what was found in the working folder files. Cite [Source: local/filename] for each.)
@@ -491,9 +507,7 @@ Write structured markdown findings with these sections:
 (Cross-reference across all sources.)
 
 ## Gaps / Unknowns
-(What is still missing?)
-
-Cite all sources with Linear issue IDs and Slack links. Every factual claim must have a [Source: ...] tag.`
+(What is still missing? What tools were unavailable?)`
 
     console.log(`[Phase1] Running context gathering via claude...`)
     writeActivity(investigationDir, 'phase1', 'command', 'Running Claude agent with Linear + Slack MCP tools...')
@@ -508,6 +522,12 @@ Cite all sources with Linear issue IDs and Slack links. Every factual claim must
     for (const m of linearMatches) {
       if (!sourceCitations.find(s => s.id === m[1])) {
         sourceCitations.push({ type: 'linear', id: m[1], label: `Linear ${m[1]}` })
+      }
+    }
+    const pylonMatches = [...findings.matchAll(/\[Source:\s*Pylon\s+#?(\d+)\]/gi)]
+    for (const m of pylonMatches) {
+      if (!sourceCitations.find(s => s.id === m[1])) {
+        sourceCitations.push({ type: 'pylon', id: m[1], label: `Pylon #${m[1]}` })
       }
     }
     const slackMatches = [...findings.matchAll(/\[Source:\s*Slack\s+#([^\],]+?)(?:,\s*[^\]]+)?\]/gi)]
