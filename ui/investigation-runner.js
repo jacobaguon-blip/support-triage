@@ -168,11 +168,12 @@ function runClaude(prompt, cwd, opts = {}) {
   return new Promise((resolve, reject) => {
     const { investigationDir, phase } = opts
     let child
+    const timeoutMs = 300000 // 5 minutes — MCP tool calls can take a while
     const timeout = setTimeout(() => {
       if (child) child.kill()
-      if (investigationDir && phase) writeActivity(investigationDir, phase, 'error', 'Claude command timed out after 120s')
-      reject(new Error('Claude command timed out after 120s'))
-    }, 120000)
+      if (investigationDir && phase) writeActivity(investigationDir, phase, 'error', `Claude command timed out after ${timeoutMs/1000}s`)
+      reject(new Error(`Claude command timed out after ${timeoutMs/1000}s`))
+    }, timeoutMs)
 
     if (investigationDir && phase) {
       writeActivity(investigationDir, phase, 'command', `claude -p --output-format text`)
