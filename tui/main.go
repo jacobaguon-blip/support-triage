@@ -161,8 +161,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if inv.Status == "waiting" && inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
 				cmds = append(cmds, loadTicketDataCmd(inv.ID))
 			}
-			// Load phase1 findings for complete investigations (no per-agent data)
-			if inv.Status == "complete" {
+			// Load phase1 findings for investigations past checkpoint 1
+			if inv.Status == "complete" || inv.Status == "waiting" {
 				cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
 			}
 			return m, tea.Batch(cmds...)
@@ -215,6 +215,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.agents[msg.investigationID] = make(map[string]*AgentState)
 		}
 		for name, state := range msg.agents {
+			// Preserve existing Findings and Logs (loaded separately) when updating status
+			if existing, ok := m.agents[msg.investigationID][name]; ok {
+				state.Findings = existing.Findings
+				state.Logs = existing.Logs
+			}
 			m.agents[msg.investigationID][name] = state
 		}
 
@@ -230,14 +235,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case agentLogsLoadedMsg:
-		if m.agents[msg.investigationID] != nil && m.agents[msg.investigationID][msg.agentName] != nil {
-			m.agents[msg.investigationID][msg.agentName].Logs = msg.logs
+		if m.agents[msg.investigationID] != nil {
+			if state := m.agents[msg.investigationID][msg.agentName]; state != nil {
+				state.Logs = msg.logs
+			} else if state := m.agents[msg.investigationID][strings.ToLower(msg.agentName)]; state != nil {
+				state.Logs = msg.logs
+			}
 		}
 		return m, nil
 
 	case agentFindingsLoadedMsg:
-		if m.agents[msg.investigationID] != nil && m.agents[msg.investigationID][msg.agentName] != nil {
-			m.agents[msg.investigationID][msg.agentName].Findings = msg.findings
+		if m.agents[msg.investigationID] == nil {
+			m.agents[msg.investigationID] = make(map[string]*AgentState)
+		}
+		lowerName := strings.ToLower(msg.agentName)
+		// Try exact match first, then lowercase (API stores "slack", TUI sends "Slack")
+		if state := m.agents[msg.investigationID][msg.agentName]; state != nil {
+			state.Findings = msg.findings
+		} else if state := m.agents[msg.investigationID][lowerName]; state != nil {
+			state.Findings = msg.findings
+		} else {
+			// Agent state not loaded yet — create placeholder so findings aren't lost
+			m.agents[msg.investigationID][lowerName] = &AgentState{
+				Name:     lowerName,
+				Status:   "completed",
+				Findings: msg.findings,
+			}
 		}
 		return m, nil
 
@@ -300,12 +323,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, tickCmd()) // Queue next tick
 
 		for _, inv := range m.investigations {
-			if inv.Status == "running" {
+			if inv.Status == "running" || inv.Status == "waiting" {
 				cmds = append(cmds,
 					loadAgentStatusesCmd(inv.ID),
 				)
 
-				// If this is the selected investigation, refresh logs for active tab
+				// If this is the selected investigation, refresh logs and findings for active tab
 				if inv.ID == m.getSelectedInvestigationID() {
 					agentName := m.getActiveAgentName()
 					if agentName != "" {
@@ -314,6 +337,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							loadAgentFindingsCmd(inv.ID, agentName),
 						)
 					}
+					// Also load phase1 findings for the summary/fallback view
+					cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
 				}
 			}
 		}

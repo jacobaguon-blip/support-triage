@@ -469,8 +469,8 @@ func (m model) renderAgentView(width, height int) string {
 	agentState := m.getAgentState(inv.ID, agentName)
 
 	if agentState == nil {
-		// For complete investigations with no per-agent data, show phase1 findings
-		if inv.Status == "complete" {
+		// For investigations with no per-agent data, show phase1 findings as fallback
+		if inv.Status == "complete" || inv.Status == "waiting" {
 			p1 := m.phase1Findings[inv.ID]
 			if p1 != "" {
 				header := sectionHeaderStyle.Render(fmt.Sprintf("CONTEXT GATHERING FINDINGS (combined)"))
