@@ -63,8 +63,8 @@ func (m model) View() string {
 		replyBanner := m.renderNewReplyBanner(inv, contentWidth)
 		tabBar := m.renderTabBar(contentWidth)
 
-		// Adjust content height for info bar (1 line) + optional reply banner (1 line)
-		extraHeight := 1 // info bar
+		// Adjust content height for info bar (2 lines) + optional reply banner (1 line)
+		extraHeight := 2 // info bar (identity + commands)
 		if replyBanner != "" {
 			extraHeight += 1
 		}
@@ -107,7 +107,7 @@ func (m model) View() string {
 				infoBar := m.renderInfoBar(adjustedContentWidth)
 				replyBanner := m.renderNewReplyBanner(inv, adjustedContentWidth)
 				tabBar := m.renderTabBar(adjustedContentWidth)
-				extraH := 1
+				extraH := 2
 				if replyBanner != "" {
 					extraH += 1
 				}
@@ -187,7 +187,7 @@ func (m model) renderSidebar(width, height int) string {
 		}
 
 		line := fmt.Sprintf("%s #%d - %s", statusIcon, inv.ID, inv.CustomerName)
-		meta := fmt.Sprintf("  %s • %s", inv.Classification, inv.Status)
+		meta := fmt.Sprintf("  %s • %s", inv.Classification, formatCheckpointShort(inv.Status, inv.CurrentCheckpoint, inv.CurrentRunNumber))
 
 		if i == m.selectedIndex {
 			items = append(items, selectedItemStyle.Render(line))
@@ -996,6 +996,9 @@ func (m model) renderInfoBar(width int) string {
 		return ""
 	}
 
+	innerWidth := width - 8
+
+	// Line 1: identity + run/status
 	left := fmt.Sprintf("#%d — %s", inv.ID, inv.CustomerName)
 	runNum := inv.CurrentRunNumber
 	if runNum < 1 {
@@ -1008,18 +1011,23 @@ func (m model) renderInfoBar(width int) string {
 
 	leftWidth := lipgloss.Width(leftRendered)
 	rightWidth := lipgloss.Width(rightRendered)
-	gap := width - leftWidth - rightWidth - 6
+	gap := innerWidth - leftWidth - rightWidth
 	if gap < 1 {
 		gap = 1
 	}
 	spacer := strings.Repeat(" ", gap)
+	line1 := leftRendered + spacer + rightRendered
+
+	// Line 2: contextual commands
+	cmds := getContextualCommands(inv.Status, inv.CurrentCheckpoint)
+	line2 := lipgloss.NewStyle().Foreground(textMuted).Width(innerWidth).Render(cmds)
 
 	barStyle := lipgloss.NewStyle().
 		Background(bgSecondary).
 		Padding(0, 2).
 		Width(width - 4)
 
-	return barStyle.Render(leftRendered + spacer + rightRendered)
+	return barStyle.Render(line1 + "\n" + line2)
 }
 
 func (m model) renderNewReplyBanner(inv *Investigation, width int) string {
@@ -1550,4 +1558,78 @@ func truncateStr(s string, maxLen int) string {
 		return s[:maxLen-3] + "..."
 	}
 	return s
+}
+
+// formatCheckpointShort returns a compact string for sidebar meta: "CP3 Investigation ⏸ • Run #2"
+func formatCheckpointShort(status, checkpoint string, runNumber int) string {
+	run := runNumber
+	if run < 1 {
+		run = 1
+	}
+
+	if status == "complete" {
+		return fmt.Sprintf("Complete ✅ • Run #%d", run)
+	}
+	if status == "error" {
+		cp := checkpointAbbrev(checkpoint)
+		if cp != "" {
+			return fmt.Sprintf("%s ✖ • Run #%d", cp, run)
+		}
+		return fmt.Sprintf("Error ✖ • Run #%d", run)
+	}
+
+	cp := checkpointAbbrev(checkpoint)
+	if cp == "" {
+		return fmt.Sprintf("%s • Run #%d", status, run)
+	}
+
+	if status == "running" {
+		return fmt.Sprintf("%s 🔄 • Run #%d", cp, run)
+	}
+	if status == "waiting" {
+		return fmt.Sprintf("%s ⏸ • Run #%d", cp, run)
+	}
+	return fmt.Sprintf("%s • Run #%d", cp, run)
+}
+
+func checkpointAbbrev(checkpoint string) string {
+	switch checkpoint {
+	case "checkpoint_1_post_classification":
+		return "CP1 Classification"
+	case "checkpoint_2_post_context_gathering":
+		return "CP2 Context"
+	case "checkpoint_3_investigation_validation":
+		return "CP3 Investigation"
+	case "checkpoint_4_solution_check":
+		return "CP4 Solution"
+	default:
+		return ""
+	}
+}
+
+// getContextualCommands returns a command hint string based on investigation state
+func getContextualCommands(status, checkpoint string) string {
+	if status == "waiting" {
+		switch checkpoint {
+		case "checkpoint_1_post_classification":
+			return "[a] Approve classification → starts context gathering  [Tab] Edit fields  [R] Reset"
+		case "checkpoint_2_post_context_gathering":
+			return "[a] Approve findings → generates documents  [1-4] Review agent tabs  [R] Reset"
+		case "checkpoint_3_investigation_validation":
+			return "[a] Approve investigation → final review  [5] Review summary  [R] Reset"
+		case "checkpoint_4_solution_check":
+			return "[a] Approve → marks complete  [5] Review response  [e] Edit  [c] Copy  [R] Reset"
+		}
+		return "[a] Approve  [R] Reset"
+	}
+	if status == "running" {
+		return "[1-4] Watch agents  [r] Refresh  — Phase running..."
+	}
+	if status == "complete" {
+		return "[5] View summary  [e] Edit response  [c] Copy  [R] Reset to re-investigate"
+	}
+	if status == "error" {
+		return "[R] Reset investigation  [r] Refresh"
+	}
+	return "[r] Refresh  [R] Reset"
 }
