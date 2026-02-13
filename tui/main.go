@@ -358,6 +358,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Periodic refresh for running investigations
 		var cmds []tea.Cmd
 		cmds = append(cmds, tickCmd()) // Queue next tick
+		cmds = append(cmds, loadInvestigationsCmd()) // Keep investigation statuses current
 
 		for _, inv := range m.investigations {
 			if inv.Status == "running" || inv.Status == "waiting" {

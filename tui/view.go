@@ -262,20 +262,30 @@ func (m model) renderTabContent(width, height int) string {
 		return m.renderCheckpointReview(inv, width, height)
 	}
 
+	// Show checkpoint banner for checkpoints 2-4
+	checkpointBanner := m.renderCheckpointBanner(inv, width)
+	bannerHeight := 0
+	if checkpointBanner != "" {
+		bannerHeight = lipgloss.Height(checkpointBanner)
+	}
+
+	var tabContent string
 	switch m.activeTab {
 	case TabSlack, TabLinear, TabPylon, TabCodebase:
-		return m.renderAgentView(width, height)
+		tabContent = m.renderAgentView(width, height-bannerHeight)
 	case TabSummary:
-		return m.renderSummaryView(width, height)
-	// case TabKB:
-	// 	return m.renderKBView(width, height)
-	// NOTE: Tab 6 (KB Article) disabled - V2 feature
+		tabContent = m.renderSummaryView(width, height-bannerHeight)
 	default:
-		return contentPanelStyle.
+		tabContent = contentPanelStyle.
 			Width(width - 4).
-			Height(height - 2).
+			Height(height - 2 - bannerHeight).
 			Render("Unknown tab")
 	}
+
+	if checkpointBanner != "" {
+		return lipgloss.JoinVertical(lipgloss.Left, checkpointBanner, tabContent)
+	}
+	return tabContent
 }
 
 func (m model) renderCheckpointBanner(inv *Investigation, width int) string {
@@ -283,26 +293,78 @@ func (m model) renderCheckpointBanner(inv *Investigation, width int) string {
 		return ""
 	}
 
-	// Map checkpoint to human-readable name
-	checkpointNames := map[string]string{
-		"checkpoint_1_post_classification":      "Classification Review",
-		"checkpoint_2_post_context_gathering":    "Context Gathering Review",
-		"checkpoint_3_investigation_validation":  "Investigation Validation",
-		"checkpoint_4_solution_check":            "Solution Review",
-	}
-	name := checkpointNames[inv.CurrentCheckpoint]
-	if name == "" {
-		name = inv.CurrentCheckpoint
+	// Skip checkpoint 1 — it has its own full review card
+	if inv.CurrentCheckpoint == "checkpoint_1_post_classification" {
+		return ""
 	}
 
-	bannerStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#F59E0B")).
-		Foreground(lipgloss.Color("#000000")).
+	type checkpointInfo struct {
+		name        string
+		description string
+		nextAction  string
+	}
+
+	checkpoints := map[string]checkpointInfo{
+		"checkpoint_2_post_context_gathering": {
+			name:        "Context Gathering Complete",
+			description: "4 agents searched Pylon, Slack, Linear, and codebase. Review findings on tabs 1-4.",
+			nextAction:  "Approve → generates summary, customer response, and Linear draft",
+		},
+		"checkpoint_3_investigation_validation": {
+			name:        "Investigation Validation",
+			description: "Summary, customer response, and Linear draft have been generated. Review on tab 5.",
+			nextAction:  "Approve → moves to final solution check",
+		},
+		"checkpoint_4_solution_check": {
+			name:        "Solution Review",
+			description: "Final review before closing. Check customer response on tab 5 (edit with 'e', copy with 'c').",
+			nextAction:  "Approve → marks investigation complete",
+		},
+	}
+
+	info, ok := checkpoints[inv.CurrentCheckpoint]
+	if !ok {
+		return ""
+	}
+
+	innerWidth := width - 8
+
+	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Padding(0, 2).
-		Width(width - 4)
+		Foreground(lipgloss.Color("#000000")).
+		Background(lipgloss.Color("#F59E0B")).
+		Padding(0, 1).
+		Width(innerWidth)
 
-	return bannerStyle.Render(fmt.Sprintf("⏸ Checkpoint: %s — Press 'a' to approve", name))
+	descStyle := lipgloss.NewStyle().
+		Foreground(textSecondary).
+		Width(innerWidth)
+
+	nextStyle := lipgloss.NewStyle().
+		Foreground(textPrimary).
+		Bold(true).
+		Width(innerWidth)
+
+	hintStyle := lipgloss.NewStyle().
+		Foreground(textMuted).
+		Width(innerWidth)
+
+	divider := lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat("─", innerWidth))
+
+	banner := lipgloss.JoinVertical(
+		lipgloss.Left,
+		headerStyle.Render(fmt.Sprintf("⏸ %s", info.name)),
+		"",
+		descStyle.Render(info.description),
+		nextStyle.Render(info.nextAction),
+		"",
+		hintStyle.Render("[a] approve  [R] reset  [1-5] switch tabs to review"),
+		divider,
+	)
+
+	return contentPanelStyle.
+		Width(width - 4).
+		Render(banner)
 }
 
 func (m model) renderCheckpointReview(inv *Investigation, width, height int) string {
@@ -494,13 +556,6 @@ func (m model) renderAgentView(width, height int) string {
 		return ""
 	}
 
-	// Checkpoint banner
-	checkpointBanner := m.renderCheckpointBanner(inv, width)
-	bannerHeight := 0
-	if checkpointBanner != "" {
-		bannerHeight = 2
-	}
-
 	agentName := m.getActiveAgentName()
 	agentState := m.getAgentState(inv.ID, agentName)
 
@@ -542,14 +597,10 @@ func (m model) renderAgentView(width, height int) string {
 				fmt.Sprintf("Agent %s has not started yet\n\nThis agent will begin when the investigation checkpoint is approved.", agentName),
 			)
 		}
-		content := contentPanelStyle.
+		return contentPanelStyle.
 			Width(width - 4).
-			Height(height - 2 - bannerHeight).
+			Height(height - 2).
 			Render(placeholder)
-		if checkpointBanner != "" {
-			return lipgloss.JoinVertical(lipgloss.Left, checkpointBanner, content)
-		}
-		return content
 	}
 
 	// Agent status header
