@@ -48,6 +48,7 @@ var keys = struct {
 	No       key.Binding
 	Debug    key.Binding
 	New      key.Binding
+	Reset    key.Binding
 }{
 	Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c")),
 	Up:       key.NewBinding(key.WithKeys("up", "k")),
@@ -74,6 +75,7 @@ var keys = struct {
 	No:       key.NewBinding(key.WithKeys("n")),
 	Debug:    key.NewBinding(key.WithKeys("?")),
 	New:      key.NewBinding(key.WithKeys("n")),
+	Reset:    key.NewBinding(key.WithKeys("R")),
 }
 
 func initialModel() model {
@@ -93,6 +95,14 @@ func initialModel() model {
 	ca.Placeholder = "Optional context or file paths..."
 	ca.SetHeight(4)
 
+	resetCtx := textarea.New()
+	resetCtx.Placeholder = "Additional context for the new run (optional)..."
+	resetCtx.SetHeight(3)
+
+	replyCtx := textarea.New()
+	replyCtx.Placeholder = "Additional context (optional)..."
+	replyCtx.SetHeight(3)
+
 	return model{
 		agents:            make(map[int]map[string]*AgentState),
 		summaries:         make(map[int]*InvestigationSummary),
@@ -105,8 +115,10 @@ func initialModel() model {
 		showDebugOverlay:  os.Getenv("TUI_DEBUG") == "1",
 		buildVersion:      buildVersion,
 		buildTime:         buildTime,
-		createTicketInput: ti,
-		createContextArea: ca,
+		createTicketInput:  ti,
+		createContextArea:  ca,
+		resetContextArea:   resetCtx,
+		replyContextArea:   replyCtx,
 	}
 }
 
@@ -282,6 +294,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.createError = ""
 		return m, loadInvestigationsCmd()
 
+	case hardResetCompletedMsg:
+		m.resettingInProgress = false
+		if msg.err != nil {
+			m.resetError = msg.err.Error()
+			return m, nil
+		}
+		m.showResetForm = false
+		m.resetError = ""
+		return m, loadInvestigationsCmd()
+
+	case newRunApprovedMsg:
+		m.approvingReply = false
+		if msg.err != nil {
+			m.replyError = msg.err.Error()
+			return m, nil
+		}
+		m.showReplyPrompt = false
+		m.replyError = ""
+		return m, loadInvestigationsCmd()
+
+	case replyDismissedMsg:
+		m.showReplyPrompt = false
+		m.replyError = ""
+		return m, loadInvestigationsCmd()
+
 	case ticketDataLoadedMsg:
 		if msg.data != nil {
 			m.ticketData[msg.investigationID] = msg.data
@@ -340,6 +377,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Also load phase1 findings for the summary/fallback view
 					cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
 				}
+			}
+		}
+
+		// Auto-show reply prompt when selected investigation has a new reply
+		if !m.showReplyPrompt && !m.showResetForm && !m.showConfirmDialog && !m.showCreateForm && !m.editingResponse {
+			inv := m.getSelectedInvestigation()
+			if inv != nil && inv.HasNewReply == 1 {
+				m.showReplyPrompt = true
+				m.replyContextArea.SetValue("")
+				m.replyError = ""
+				m.approvingReply = false
 			}
 		}
 
@@ -436,6 +484,57 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.createContextArea, cmd = m.createContextArea.Update(msg)
 					return m, cmd
 				}
+			}
+		}
+
+		// Handle reset form input
+		if m.showResetForm && !m.resettingInProgress {
+			switch {
+			case key.Matches(msg, keys.Escape):
+				m.showResetForm = false
+				m.resetError = ""
+				return m, nil
+
+			case key.Matches(msg, keys.Save), key.Matches(msg, keys.Enter):
+				inv := m.getSelectedInvestigation()
+				if inv != nil {
+					m.resettingInProgress = true
+					m.resetError = ""
+					return m, hardResetCmd(inv.ID, strings.TrimSpace(m.resetContextArea.Value()))
+				}
+				return m, nil
+
+			default:
+				var cmd tea.Cmd
+				m.resetContextArea, cmd = m.resetContextArea.Update(msg)
+				return m, cmd
+			}
+		}
+
+		// Handle reply prompt input
+		if m.showReplyPrompt && !m.approvingReply {
+			switch {
+			case key.Matches(msg, keys.Escape), key.Matches(msg, keys.No):
+				inv := m.getSelectedInvestigation()
+				if inv != nil {
+					return m, dismissReplyCmd(inv.ID)
+				}
+				m.showReplyPrompt = false
+				return m, nil
+
+			case key.Matches(msg, keys.Yes), key.Matches(msg, keys.Enter):
+				inv := m.getSelectedInvestigation()
+				if inv != nil {
+					m.approvingReply = true
+					m.replyError = ""
+					return m, approveNewRunCmd(inv.ID, strings.TrimSpace(m.replyContextArea.Value()))
+				}
+				return m, nil
+
+			default:
+				var cmd tea.Cmd
+				m.replyContextArea, cmd = m.replyContextArea.Update(msg)
+				return m, cmd
 			}
 		}
 
@@ -662,6 +761,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.confirmMessage = fmt.Sprintf("Post response to Pylon ticket #%d?", inv.ID)
 					}
 				}
+			}
+			return m, nil
+
+		case key.Matches(msg, keys.Reset):
+			// Shift+R: open reset form (only when investigation is not running)
+			inv := m.getSelectedInvestigation()
+			if inv != nil && inv.Status != "running" && !m.showReplyPrompt && !m.showConfirmDialog && !m.showCreateForm {
+				m.showResetForm = true
+				m.resetContextArea.SetValue("")
+				m.resetError = ""
+				m.resettingInProgress = false
+				cmd = m.resetContextArea.Focus()
+				return m, cmd
 			}
 			return m, nil
 

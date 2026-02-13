@@ -76,6 +76,23 @@ type phase1FindingsLoadedMsg struct {
 	content         string
 }
 
+type hardResetCompletedMsg struct {
+	investigationID int
+	newRunNumber    int
+	err             error
+}
+
+type newRunApprovedMsg struct {
+	investigationID int
+	newRunNumber    int
+	err             error
+}
+
+type replyDismissedMsg struct {
+	investigationID int
+	err             error
+}
+
 type errMsg struct {
 	err error
 }

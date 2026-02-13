@@ -538,6 +538,69 @@ func createInvestigationCmd(ticketID, skill, context string) tea.Cmd {
 	}
 }
 
+// Hard reset an investigation with optional context
+func hardResetCmd(investigationID int, triggerSummary string) tea.Cmd {
+	return func() tea.Msg {
+		body, _ := json.Marshal(map[string]string{
+			"trigger_summary": triggerSummary,
+		})
+		url := fmt.Sprintf("%s/api/investigations/%d/hard-reset", apiBase, investigationID)
+		resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+		if err != nil {
+			return hardResetCompletedMsg{investigationID: investigationID, err: err}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return hardResetCompletedMsg{investigationID: investigationID, err: fmt.Errorf("HTTP %d", resp.StatusCode)}
+		}
+
+		var result struct {
+			NewRunNumber int `json:"newRunNumber"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		return hardResetCompletedMsg{investigationID: investigationID, newRunNumber: result.NewRunNumber}
+	}
+}
+
+// Approve a new investigation run after customer reply detection
+func approveNewRunCmd(investigationID int, triggerSummary string) tea.Cmd {
+	return func() tea.Msg {
+		body, _ := json.Marshal(map[string]string{
+			"trigger_summary": triggerSummary,
+		})
+		url := fmt.Sprintf("%s/api/investigations/%d/approve-new-run", apiBase, investigationID)
+		resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+		if err != nil {
+			return newRunApprovedMsg{investigationID: investigationID, err: err}
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return newRunApprovedMsg{investigationID: investigationID, err: fmt.Errorf("HTTP %d", resp.StatusCode)}
+		}
+
+		var result struct {
+			NewRunNumber int `json:"newRunNumber"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		return newRunApprovedMsg{investigationID: investigationID, newRunNumber: result.NewRunNumber}
+	}
+}
+
+// Dismiss a customer reply notification without creating a new run
+func dismissReplyCmd(investigationID int) tea.Cmd {
+	return func() tea.Msg {
+		url := fmt.Sprintf("%s/api/investigations/%d/dismiss-reply", apiBase, investigationID)
+		resp, err := http.Post(url, "application/json", strings.NewReader("{}"))
+		if err != nil {
+			return replyDismissedMsg{investigationID: investigationID, err: err}
+		}
+		defer resp.Body.Close()
+		return replyDismissedMsg{investigationID: investigationID}
+	}
+}
+
 // Periodic refresh tick
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second*2, func(t time.Time) tea.Msg {

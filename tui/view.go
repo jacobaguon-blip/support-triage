@@ -16,6 +16,16 @@ func (m model) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
 	}
 
+	// Render reset form overlay if shown
+	if m.showResetForm {
+		return m.renderResetForm()
+	}
+
+	// Render reply prompt overlay if shown
+	if m.showReplyPrompt {
+		return m.renderReplyPrompt()
+	}
+
 	// Render confirmation dialog overlay if shown
 	if m.showConfirmDialog {
 		return m.renderConfirmDialog()
@@ -49,13 +59,26 @@ func (m model) View() string {
 	inv := m.getSelectedInvestigation()
 	var content string
 	if inv != nil {
+		infoBar := m.renderInfoBar(contentWidth)
+		replyBanner := m.renderNewReplyBanner(inv, contentWidth)
 		tabBar := m.renderTabBar(contentWidth)
-		tabContent := m.renderTabContent(contentWidth, contentHeight-4)
+
+		// Adjust content height for info bar (1 line) + optional reply banner (1 line)
+		extraHeight := 1 // info bar
+		if replyBanner != "" {
+			extraHeight += 1
+		}
+		tabContent := m.renderTabContent(contentWidth, contentHeight-4-extraHeight)
+
+		parts := []string{infoBar}
+		if replyBanner != "" {
+			parts = append(parts, replyBanner)
+		}
+		parts = append(parts, tabBar, tabContent)
 
 		content = lipgloss.JoinVertical(
 			lipgloss.Left,
-			tabBar,
-			tabContent,
+			parts...,
 		)
 	} else {
 		content = contentPanelStyle.
@@ -81,12 +104,22 @@ func (m model) View() string {
 
 			var adjustedContent string
 			if inv != nil {
+				infoBar := m.renderInfoBar(adjustedContentWidth)
+				replyBanner := m.renderNewReplyBanner(inv, adjustedContentWidth)
 				tabBar := m.renderTabBar(adjustedContentWidth)
-				tabContent := m.renderTabContent(adjustedContentWidth, contentHeight-4)
+				extraH := 1
+				if replyBanner != "" {
+					extraH += 1
+				}
+				tabContent := m.renderTabContent(adjustedContentWidth, contentHeight-4-extraH)
+				debugParts := []string{infoBar}
+				if replyBanner != "" {
+					debugParts = append(debugParts, replyBanner)
+				}
+				debugParts = append(debugParts, tabBar, tabContent)
 				adjustedContent = lipgloss.JoinVertical(
 					lipgloss.Left,
-					tabBar,
-					tabContent,
+					debugParts...,
 				)
 			} else {
 				adjustedContent = contentPanelStyle.
@@ -149,6 +182,9 @@ func (m model) renderSidebar(width, height int) string {
 	// List items
 	for i, inv := range m.investigations {
 		statusIcon := getStatusIcon(inv.Status)
+		if inv.HasNewReply == 1 {
+			statusIcon = "📩"
+		}
 
 		line := fmt.Sprintf("%s #%d - %s", statusIcon, inv.ID, inv.CustomerName)
 		meta := fmt.Sprintf("  %s • %s", inv.Classification, inv.Status)
@@ -903,6 +939,242 @@ func (m model) renderKBView(width, height int) string {
 		Render("KB Article view - V2 feature")
 }
 
+func (m model) renderInfoBar(width int) string {
+	inv := m.getSelectedInvestigation()
+	if inv == nil {
+		return ""
+	}
+
+	left := fmt.Sprintf("#%d — %s", inv.ID, inv.CustomerName)
+	runNum := inv.CurrentRunNumber
+	if runNum < 1 {
+		runNum = 1
+	}
+	right := fmt.Sprintf("Run #%d • %s %s", runNum, getStatusIcon(inv.Status), inv.Status)
+
+	leftRendered := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).Render(left)
+	rightRendered := lipgloss.NewStyle().Foreground(textSecondary).Render(right)
+
+	leftWidth := lipgloss.Width(leftRendered)
+	rightWidth := lipgloss.Width(rightRendered)
+	gap := width - leftWidth - rightWidth - 6
+	if gap < 1 {
+		gap = 1
+	}
+	spacer := strings.Repeat(" ", gap)
+
+	barStyle := lipgloss.NewStyle().
+		Background(bgSecondary).
+		Padding(0, 2).
+		Width(width - 4)
+
+	return barStyle.Render(leftRendered + spacer + rightRendered)
+}
+
+func (m model) renderNewReplyBanner(inv *Investigation, width int) string {
+	if inv.HasNewReply != 1 {
+		return ""
+	}
+
+	bannerStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#F59E0B")).
+		Foreground(lipgloss.Color("#000000")).
+		Bold(true).
+		Padding(0, 2).
+		Width(width - 4)
+
+	summary := inv.NewReplySummary
+	maxLen := width - 50
+	if maxLen < 20 {
+		maxLen = 20
+	}
+	if len(summary) > maxLen {
+		summary = summary[:maxLen-3] + "..."
+	}
+	if summary == "" {
+		summary = "New information available"
+	}
+
+	return bannerStyle.Render(fmt.Sprintf("📩 Customer replied — %s — Press Enter to review", summary))
+}
+
+func (m model) renderResetForm() string {
+	inv := m.getSelectedInvestigation()
+	dialogWidth := 65
+	dialogHeight := 16
+
+	title := titleStyle.Width(m.width).Render("Support Triage")
+
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(c1Primary).
+		BorderBackground(bgPrimary).
+		Background(bgPrimary).
+		Padding(1, 2).
+		Width(dialogWidth).
+		Height(dialogHeight)
+
+	dialogHeader := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(c1Primary).
+		Render("🔄 Reset Investigation")
+
+	var invInfo string
+	if inv != nil {
+		runNum := inv.CurrentRunNumber
+		if runNum < 1 {
+			runNum = 1
+		}
+		invInfo = lipgloss.NewStyle().Foreground(textSecondary).
+			Render(fmt.Sprintf("#%d — %s (currently Run #%d)", inv.ID, inv.CustomerName, runNum))
+	}
+
+	description := lipgloss.NewStyle().Foreground(textPrimary).
+		Render("This will archive the current run and start a fresh\ninvestigation from Phase 0.")
+
+	contextLabel := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).
+		Render("Additional context:")
+
+	m.resetContextArea.SetWidth(dialogWidth - 8)
+	contextField := m.resetContextArea.View()
+
+	var errorLine string
+	if m.resetError != "" {
+		errorLine = lipgloss.NewStyle().Foreground(statusError).Bold(true).Render("Error: " + m.resetError)
+	}
+
+	var footer string
+	if m.resettingInProgress {
+		footer = m.spinner.View() + " Resetting..."
+	} else {
+		footer = dimmedTextStyle.Render("Enter: reset • Esc: cancel")
+	}
+
+	dialogContent := lipgloss.JoinVertical(
+		lipgloss.Left,
+		dialogHeader,
+		"",
+		invInfo,
+		"",
+		description,
+		"",
+		contextLabel,
+		contextField,
+		"",
+		errorLine,
+		footer,
+	)
+
+	dialog := dialogStyle.Render(dialogContent)
+
+	centered := lipgloss.Place(
+		m.width,
+		m.height-2,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		centered,
+	)
+}
+
+func (m model) renderReplyPrompt() string {
+	inv := m.getSelectedInvestigation()
+	dialogWidth := 65
+	dialogHeight := 20
+
+	title := titleStyle.Width(m.width).Render("Support Triage")
+
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#F59E0B")).
+		BorderBackground(bgPrimary).
+		Background(bgPrimary).
+		Padding(1, 2).
+		Width(dialogWidth).
+		Height(dialogHeight)
+
+	dialogHeader := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#F59E0B")).
+		Render("📩 Customer Reply Detected")
+
+	var invInfo string
+	if inv != nil {
+		invInfo = lipgloss.NewStyle().Foreground(textSecondary).
+			Render(fmt.Sprintf("#%d — %s", inv.ID, inv.CustomerName))
+	}
+
+	// Show the auto-detected summary
+	var summarySection string
+	if inv != nil && inv.NewReplySummary != "" {
+		summaryLabel := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).Render("Detected:")
+		summaryText := lipgloss.NewStyle().Foreground(textSecondary).Width(dialogWidth - 10).
+			Render(inv.NewReplySummary)
+		summarySection = lipgloss.JoinVertical(lipgloss.Left, summaryLabel, summaryText)
+	}
+
+	question := lipgloss.NewStyle().Bold(true).Foreground(textPrimary).
+		Render("Continue investigation with new information?")
+
+	contextLabel := lipgloss.NewStyle().Foreground(textSecondary).
+		Render("Additional context (optional):")
+
+	m.replyContextArea.SetWidth(dialogWidth - 8)
+	contextField := m.replyContextArea.View()
+
+	var errorLine string
+	if m.replyError != "" {
+		errorLine = lipgloss.NewStyle().Foreground(statusError).Bold(true).Render("Error: " + m.replyError)
+	}
+
+	var footer string
+	if m.approvingReply {
+		footer = m.spinner.View() + " Starting new run..."
+	} else {
+		footer = dimmedTextStyle.Render("Y/Enter: new run • N/Esc: dismiss")
+	}
+
+	dialogContent := lipgloss.JoinVertical(
+		lipgloss.Left,
+		dialogHeader,
+		"",
+		invInfo,
+		"",
+		summarySection,
+		"",
+		question,
+		"",
+		contextLabel,
+		contextField,
+		"",
+		errorLine,
+		footer,
+	)
+
+	dialog := dialogStyle.Render(dialogContent)
+
+	centered := lipgloss.Place(
+		m.width,
+		m.height-2,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+		lipgloss.WithWhitespaceChars(" "),
+	)
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		centered,
+	)
+}
+
 func (m model) renderActionBar() string {
 	runningCount := 0
 	waitingCount := 0
@@ -924,15 +1196,26 @@ func (m model) renderActionBar() string {
 		debugHint = " • ?: debug"
 	}
 	if m.activeTab >= TabSlack && m.activeTab <= TabCodebase {
-		right = "↑↓/jk: nav • 1-5: tabs • PgUp/PgDn: scroll • n: new • r: refresh • a: approve • q: quit" + debugHint
+		right = "↑↓: nav • 1-5: tabs • PgUp/PgDn: scroll • n: new • r: refresh • R: reset • a: approve • q: quit" + debugHint
 	} else if m.activeTab == TabSummary {
 		if m.editingResponse {
 			right = "Esc: cancel edit • 1-5: tabs • q: quit" + debugHint
 		} else {
-			right = "↑↓/jk: nav • 1-5: tabs • e: edit • c: copy • p: post • n: new • r: refresh • q: quit" + debugHint
+			right = "↑↓: nav • 1-5: tabs • e: edit • c: copy • p: post • n: new • R: reset • q: quit" + debugHint
 		}
 	} else {
-		right = "↑↓/jk: nav • 1-5: tabs • n: new • r: refresh • a: approve • q: quit" + debugHint
+		right = "↑↓: nav • 1-5: tabs • n: new • r: refresh • R: reset • a: approve • q: quit" + debugHint
+	}
+
+	// Show reply count if any
+	newReplyCount := 0
+	for _, inv := range m.investigations {
+		if inv.HasNewReply == 1 {
+			newReplyCount++
+		}
+	}
+	if newReplyCount > 0 {
+		left += fmt.Sprintf(" • 📩 %d reply", newReplyCount)
 	}
 
 	leftPart := actionBarStyle.Width(m.width/2 - 2).Render(left)

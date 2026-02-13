@@ -143,48 +143,14 @@ async function evaluateAndTrigger(investigationId, dbCtx, dbHelpers, investigati
         [investigationId]
       )
 
-      // Create a new run
-      const newRunNumber = currentRunNumber + 1
-
-      // Mark current run as superseded
+      // Flag investigation for TSE decision — do NOT auto-create a new run
+      const ts = new Date().toISOString().replace('T', ' ').split('.')[0]
       dbCtx.run(
-        `UPDATE investigation_runs SET status = 'superseded', completed_at = ? WHERE investigation_id = ? AND run_number = ?`,
-        [new Date().toISOString(), investigationId, currentRunNumber]
+        `UPDATE investigations SET has_new_reply = 1, new_reply_summary = ?, updated_at = ? WHERE id = ?`,
+        [isNewInfo.reason, ts, investigationId]
       )
 
-      // Create new run record
-      dbCtx.run(
-        `INSERT INTO investigation_runs (investigation_id, run_number, trigger_type, trigger_summary, status, current_checkpoint, created_at)
-         VALUES (?, ?, 'new_response', ?, 'running', 'checkpoint_1_post_classification', ?)`,
-        [investigationId, newRunNumber, isNewInfo.reason, new Date().toISOString()]
-      )
-
-      // Reset investigation for new run
-      dbCtx.run(
-        `UPDATE investigations SET
-          status = 'running', current_checkpoint = 'checkpoint_1_post_classification',
-          current_run_number = ?, updated_at = ?,
-          current_version_id = NULL, anchor_version_id = NULL
-         WHERE id = ?`,
-        [newRunNumber, new Date().toISOString().replace('T', ' ').split('.')[0], investigationId]
-      )
-
-      // Insert conversation item announcing new run
-      dbCtx.run(
-        `INSERT INTO conversation_items (investigation_id, run_number, type, actor_name, actor_role, content, content_preview, metadata, created_at)
-         VALUES (?, ?, 'reset_marker', 'System', 'system', ?, ?, ?, ?)`,
-        [investigationId, newRunNumber,
-         `New customer information detected — starting Run #${newRunNumber}\n\n${isNewInfo.reason}`,
-         `New info → Run #${newRunNumber}`,
-         JSON.stringify({ trigger: 'new_response', previous_run: currentRunNumber, new_run: newRunNumber, reason: isNewInfo.reason }),
-         new Date().toISOString()]
-      )
-
-      // Trigger Phase 0 for the new run
-      const { runPhase0 } = await import('./investigation-runner.js')
-      runPhase0(investigationId, investigationDir, dbHelpers, newRunNumber).catch(err => {
-        console.error(`[Debounce] Phase 0 failed for #${investigationId} (Run #${newRunNumber}):`, err.message)
-      })
+      console.log(`[Debounce] Flagged #${investigationId} for TSE review (awaiting human decision)`)
 
     } else {
       console.log(`[Debounce] No new information for #${investigationId}: ${isNewInfo.reason}`)

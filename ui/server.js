@@ -8,6 +8,7 @@ import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { runPhase0, runPhase1, runPhase1MultiAgent, runPhase2, populateFromTicketData } from './investigation-runner.js'
+import { checkPermissions, fixAllPermissions, getAllowedToolsForAgent, AGENT_REQUIRED_TOOLS } from './agent-permissions.js'
 import { createSnapshot, restoreToVersion, getVersions, getVersionDiff } from './version-manager.js'
 import { syncTicketResponses, checkForNewResponses } from './response-sync.js'
 import { encrypt, decrypt, generateMCPConfig, writeMCPConfig, maskApiKey, testConnection } from './credentials-manager.js'
@@ -189,7 +190,9 @@ function migrateExistingDB() {
     'last_response_check_at': 'DATETIME',
     'current_run_number': 'INTEGER DEFAULT 1',
     'last_customer_message_at': 'DATETIME',
-    'debounce_timer_id': 'TEXT'
+    'debounce_timer_id': 'TEXT',
+    'has_new_reply': 'INTEGER DEFAULT 0',
+    'new_reply_summary': 'TEXT'
   }
   for (const [col, type] of Object.entries(investigationCols)) {
     try {
@@ -312,7 +315,8 @@ const dbHelpers = {
       'auto_proceed', 'agent_mode', 'resolution_type', 'linear_issue_id',
       'notion_page_id', 'tags', 'snapshot', 'updated_at', 'resolved_at',
       'current_version_id', 'anchor_version_id', 'last_response_check_at',
-      'current_run_number', 'last_customer_message_at', 'debounce_timer_id'
+      'current_run_number', 'last_customer_message_at', 'debounce_timer_id',
+      'has_new_reply', 'new_reply_summary'
     ]
 
     const setClauses = []
@@ -777,7 +781,7 @@ app.get('/api/investigations/:id/runs/:runNumber/conversation', (req, res) => {
 })
 
 // POST /api/investigations/:id/hard-reset — wipe and restart investigation from Phase 0
-app.post('/api/investigations/:id/hard-reset', (req, res) => {
+app.post('/api/investigations/:id/hard-reset', async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     console.log(`[HardReset] Received hard reset request for investigation #${id}`)
@@ -793,6 +797,16 @@ app.post('/api/investigations/:id/hard-reset', (req, res) => {
     const ts = timestamp.replace('T', ' ').split('.')[0]
     const currentRunNumber = inv.current_run_number || 1
     const newRunNumber = currentRunNumber + 1
+
+    // Accept optional trigger_summary from request body
+    const { trigger_summary } = req.body || {}
+    const resetSummary = trigger_summary || 'Manual hard reset'
+
+    // Cancel any pending debounce timer
+    try {
+      const { cancelDebounceTimer } = await import('./debounce-manager.js')
+      cancelDebounceTimer(id)
+    } catch {}
 
     // 1. Mark current run as superseded
     run(
@@ -843,8 +857,8 @@ app.post('/api/investigations/:id/hard-reset', (req, res) => {
     // 3. Create new run record
     run(
       `INSERT INTO investigation_runs (investigation_id, run_number, trigger_type, trigger_summary, status, current_checkpoint, created_at)
-       VALUES (?, ?, 'hard_reset', 'Manual hard reset', 'running', 'checkpoint_1_post_classification', ?)`,
-      [id, newRunNumber, timestamp]
+       VALUES (?, ?, 'hard_reset', ?, 'running', 'checkpoint_1_post_classification', ?)`,
+      [id, newRunNumber, resetSummary, timestamp]
     )
 
     // 4. Reset investigation state
@@ -854,7 +868,8 @@ app.post('/api/investigations/:id/hard-reset', (req, res) => {
         priority = NULL, suggested_priority = NULL,
         status = 'running', current_checkpoint = 'checkpoint_1_post_classification',
         current_run_number = ?, updated_at = ?,
-        current_version_id = NULL, anchor_version_id = NULL
+        current_version_id = NULL, anchor_version_id = NULL,
+        has_new_reply = 0, new_reply_summary = NULL
        WHERE id = ?`,
       [newRunNumber, ts, id]
     )
@@ -864,9 +879,9 @@ app.post('/api/investigations/:id/hard-reset', (req, res) => {
       `INSERT INTO conversation_items (investigation_id, run_number, type, actor_name, actor_role, content, content_preview, metadata, created_at)
        VALUES (?, ?, 'reset_marker', 'System', 'system', ?, ?, ?, ?)`,
       [id, newRunNumber,
-       `Investigation hard reset — starting fresh as Run #${newRunNumber}`,
+       `Investigation hard reset — starting fresh as Run #${newRunNumber}${resetSummary !== 'Manual hard reset' ? '\n\nContext: ' + resetSummary : ''}`,
        `Hard reset → Run #${newRunNumber}`,
-       JSON.stringify({ trigger: 'hard_reset', previous_run: currentRunNumber, new_run: newRunNumber }),
+       JSON.stringify({ trigger: 'hard_reset', previous_run: currentRunNumber, new_run: newRunNumber, trigger_summary: resetSummary }),
        timestamp]
     )
 
@@ -887,6 +902,102 @@ app.post('/api/investigations/:id/hard-reset', (req, res) => {
   } catch (error) {
     console.error('[HardReset] Error during hard reset:', error)
     res.status(500).json({ error: error.message, message: `Hard reset failed: ${error.message}` })
+  }
+})
+
+// POST /api/investigations/:id/approve-new-run — TSE approves re-investigation after customer reply
+app.post('/api/investigations/:id/approve-new-run', (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    const { trigger_summary } = req.body || {}
+    const inv = queryOne('SELECT * FROM investigations WHERE id = ?', [id])
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' })
+
+    const investigationDir = join(INVESTIGATIONS_DIR, String(id))
+    const timestamp = new Date().toISOString()
+    const ts = timestamp.replace('T', ' ').split('.')[0]
+    const currentRunNumber = inv.current_run_number || 1
+    const newRunNumber = currentRunNumber + 1
+
+    // Build summary from auto-detected reason + TSE context
+    const autoReason = inv.new_reply_summary || 'Customer replied'
+    const summary = trigger_summary
+      ? `${autoReason} | TSE context: ${trigger_summary}`
+      : autoReason
+
+    // 1. Mark current run as superseded
+    run(
+      `UPDATE investigation_runs SET status = 'superseded', completed_at = ? WHERE investigation_id = ? AND run_number = ?`,
+      [timestamp, id, currentRunNumber]
+    )
+
+    // 2. Create new run record
+    run(
+      `INSERT INTO investigation_runs (investigation_id, run_number, trigger_type, trigger_summary, status, current_checkpoint, created_at)
+       VALUES (?, ?, 'new_response', ?, 'running', 'checkpoint_1_post_classification', ?)`,
+      [id, newRunNumber, summary, timestamp]
+    )
+
+    // 3. Reset investigation state (preserve classification/connector/product_area from prior run)
+    run(
+      `UPDATE investigations SET
+        status = 'running', current_checkpoint = 'checkpoint_1_post_classification',
+        current_run_number = ?, updated_at = ?,
+        current_version_id = NULL, anchor_version_id = NULL,
+        has_new_reply = 0, new_reply_summary = NULL
+       WHERE id = ?`,
+      [newRunNumber, ts, id]
+    )
+
+    // 4. Insert reset_marker conversation item
+    run(
+      `INSERT INTO conversation_items (investigation_id, run_number, type, actor_name, actor_role, content, content_preview, metadata, created_at)
+       VALUES (?, ?, 'reset_marker', 'System', 'system', ?, ?, ?, ?)`,
+      [id, newRunNumber,
+       `Customer reply detected — starting Run #${newRunNumber}\n\n${summary}`,
+       `New reply → Run #${newRunNumber}`,
+       JSON.stringify({ trigger: 'new_response', previous_run: currentRunNumber, new_run: newRunNumber, trigger_summary: summary }),
+       timestamp]
+    )
+
+    // 5. Respond immediately
+    res.json({
+      success: true,
+      previousRunNumber: currentRunNumber,
+      newRunNumber,
+      message: `Investigation #${id} re-investigating. Starting Run #${newRunNumber}.`
+    })
+
+    // 6. Fire-and-forget: Re-run Phase 0
+    console.log(`[Server] New run approved → launching Phase 0 for #${id} (Run #${newRunNumber})`)
+    runPhase0(id, investigationDir, dbHelpers, newRunNumber).catch(err => {
+      console.error(`[Server] Phase 0 failed for #${id} (Run #${newRunNumber}):`, err.message)
+    })
+
+  } catch (error) {
+    console.error('[ApproveNewRun] Error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/investigations/:id/dismiss-reply — TSE dismisses customer reply notification
+app.post('/api/investigations/:id/dismiss-reply', (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    const inv = queryOne('SELECT * FROM investigations WHERE id = ?', [id])
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' })
+
+    const ts = new Date().toISOString().replace('T', ' ').split('.')[0]
+    run(
+      `UPDATE investigations SET has_new_reply = 0, new_reply_summary = NULL, updated_at = ? WHERE id = ?`,
+      [ts, id]
+    )
+
+    console.log(`[Server] Reply dismissed for investigation #${id}`)
+    res.json({ success: true, message: `Reply notification dismissed for #${id}` })
+  } catch (error) {
+    console.error('[DismissReply] Error:', error)
+    res.status(500).json({ error: error.message })
   }
 })
 
@@ -1021,6 +1132,52 @@ app.post('/api/investigations/:id/checkpoint', (req, res) => {
         const currentInv = queryOne('SELECT current_run_number FROM investigations WHERE id = ?', [id])
         const runNum = currentInv?.current_run_number || 1
         if (checkpoint === 'checkpoint_1_post_classification') {
+          // === Preflight: check and auto-fix agent permissions before Phase 1 ===
+          try {
+            const preflight = checkPermissions(TRIAGE_DIR)
+            console.log(`[Preflight] Agent readiness: ${JSON.stringify(Object.fromEntries(
+              Object.entries(preflight.agents).map(([k, v]) => [k, v.ready ? 'ready' : `missing: ${v.serverNotConfigured.join(',')}`])
+            ))}`)
+
+            // Auto-fix: add missing tools and servers to settings
+            const fixResult = fixAllPermissions(TRIAGE_DIR)
+            if (fixResult.addedTools.length > 0 || fixResult.addedServers.length > 0) {
+              console.log(`[Preflight] Auto-fixed: +${fixResult.addedTools.length} tools, +${fixResult.addedServers.length} servers`)
+            }
+
+            // Log preflight results as a conversation item
+            const skippedAgents = Object.entries(preflight.agents)
+              .filter(([_, v]) => v.serverNotConfigured.length > 0)
+              .map(([name]) => name)
+
+            let preflightMsg = `## Pre-Flight Permission Check\n\n`
+            for (const [agentName, status] of Object.entries(preflight.agents)) {
+              const icon = status.serverNotConfigured.length > 0 ? 'SKIP' : 'OK'
+              preflightMsg += `- **${agentName}:** ${icon}`
+              if (status.serverNotConfigured.length > 0) {
+                preflightMsg += ` (server not configured: ${status.serverNotConfigured.join(', ')})`
+              }
+              preflightMsg += '\n'
+            }
+            if (fixResult.addedTools.length > 0) {
+              preflightMsg += `\n_Auto-granted ${fixResult.addedTools.length} tool permissions._\n`
+            }
+            if (skippedAgents.length > 0) {
+              preflightMsg += `\n_Agents skipped due to missing MCP config: ${skippedAgents.join(', ')}_\n`
+            }
+
+            // Write preflight conversation item
+            run(
+              `INSERT INTO conversation_items (investigation_id, run_number, type, phase, actor_name, actor_role, content, content_preview, metadata, created_at)
+               VALUES (?, ?, 'system_phase', 'phase1', 'System', 'system', ?, ?, ?, ?)`,
+              [id, runNum, preflightMsg, `Preflight: ${4 - skippedAgents.length}/4 agents ready`,
+               JSON.stringify({ preflight: preflight.agents, fixes: fixResult, skipped: skippedAgents }),
+               timestamp]
+            )
+          } catch (preflightErr) {
+            console.error(`[Preflight] Error (non-fatal): ${preflightErr.message}`)
+          }
+
           console.log(`[Server] Checkpoint 1 confirmed → launching Phase 1 (multi-agent) for #${id} (Run #${runNum})`)
           runPhase1MultiAgent(id, investigationDir, dbHelpers, runNum).catch(err => {
             console.error(`[Server] Phase 1 multi-agent failed for #${id}:`, err.message)
@@ -1128,6 +1285,87 @@ app.put('/api/settings', (req, res) => {
     writeFileSync(SETTINGS_PATH, JSON.stringify(req.body, null, 2))
     res.json({ success: true })
   } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// ============ PERMISSIONS / PREFLIGHT ============
+
+// GET /api/permissions/status — fast file-based check of agent tool permissions
+app.get('/api/permissions/status', (req, res) => {
+  try {
+    const status = checkPermissions(TRIAGE_DIR)
+    res.json(status)
+  } catch (error) {
+    console.error('Error checking permissions:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/permissions/grant — add specific tools to project settings allow list
+app.post('/api/permissions/grant', (req, res) => {
+  try {
+    const { tools, servers, scope } = req.body
+    if (!tools && !servers) {
+      return res.status(400).json({ error: 'tools or servers array is required' })
+    }
+
+    const settingsPath = join(TRIAGE_DIR, '.claude', 'settings.local.json')
+    let settings = {}
+    try {
+      if (existsSync(settingsPath)) {
+        settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
+      }
+    } catch {}
+
+    if (!settings.permissions) settings.permissions = {}
+    if (!settings.permissions.allow) settings.permissions.allow = []
+    if (!settings.enabledMcpjsonServers) settings.enabledMcpjsonServers = []
+
+    const addedTools = []
+    const addedServers = []
+
+    if (tools) {
+      for (const tool of tools) {
+        if (!settings.permissions.allow.includes(tool)) {
+          settings.permissions.allow.push(tool)
+          addedTools.push(tool)
+        }
+      }
+    }
+
+    if (servers) {
+      for (const server of servers) {
+        if (!settings.enabledMcpjsonServers.includes(server)) {
+          settings.enabledMcpjsonServers.push(server)
+          addedServers.push(server)
+        }
+      }
+    }
+
+    mkdirSync(join(TRIAGE_DIR, '.claude'), { recursive: true })
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+
+    res.json({ success: true, addedTools, addedServers })
+  } catch (error) {
+    console.error('Error granting permissions:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// POST /api/permissions/fix-all — one-click fix: add ALL required tools for ALL agents
+app.post('/api/permissions/fix-all', (req, res) => {
+  try {
+    const result = fixAllPermissions(TRIAGE_DIR)
+    console.log(`[Permissions] fix-all: added ${result.addedTools.length} tools, ${result.addedServers.length} servers`)
+    res.json({
+      success: true,
+      addedTools: result.addedTools,
+      addedServers: result.addedServers,
+      message: `Added ${result.addedTools.length} tool(s) and ${result.addedServers.length} server(s) to project settings`
+    })
+  } catch (error) {
+    console.error('Error fixing permissions:', error)
     res.status(500).json({ error: error.message })
   }
 })

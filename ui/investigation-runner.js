@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync, existsSync, appendFileSync, readdirSync, s
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
+import { getAllowedToolsForAgent } from './agent-permissions.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -166,7 +167,7 @@ export function inferProductArea(classification, bodyText, connectorName) {
  */
 function runClaude(prompt, cwd, opts = {}) {
   return new Promise((resolve, reject) => {
-    const { investigationDir, phase } = opts
+    const { investigationDir, phase, allowedTools } = opts
     let child
     const timeoutMs = 300000 // 5 minutes — MCP tool calls can take a while
     const timeout = setTimeout(() => {
@@ -175,12 +176,18 @@ function runClaude(prompt, cwd, opts = {}) {
       reject(new Error(`Claude command timed out after ${timeoutMs/1000}s`))
     }, timeoutMs)
 
+    const args = ['-p', '--output-format', 'text']
+    if (allowedTools && allowedTools.length > 0) {
+      args.push('--allowedTools', ...allowedTools)
+    }
+
     if (investigationDir && phase) {
-      writeActivity(investigationDir, phase, 'command', `claude -p --output-format text`)
+      const toolsSuffix = allowedTools?.length ? ` (${allowedTools.length} tools granted)` : ''
+      writeActivity(investigationDir, phase, 'command', `claude -p --output-format text${toolsSuffix}`)
     }
 
     try {
-      child = spawn('claude', ['-p', '--output-format', 'text'], {
+      child = spawn('claude', args, {
         cwd: cwd || TRIAGE_DIR,
         stdio: ['pipe', 'pipe', 'pipe']
       })
@@ -287,7 +294,11 @@ export async function runPhase0(ticketId, investigationDir, dbHelpers, runNumber
 Return ONLY a raw JSON object (no markdown, no code blocks):
 {"ticket_id":${ticketId},"pylon_id":"<id>","title":"<title>","customer_name":"<account name>","account_id":"<acct id>","pylon_link":"<link>","source":"<source>","state":"<state>","created_at":"<created>","body":"<body text, max 500 chars>","tags":[],"fetched_at":"${new Date().toISOString()}"}`
 
-        const output = await runClaude(prompt, TRIAGE_DIR, { investigationDir, phase: 'phase0' })
+        const output = await runClaude(prompt, TRIAGE_DIR, {
+          investigationDir,
+          phase: 'phase0',
+          allowedTools: getAllowedToolsForAgent('phase0')
+        })
         const jsonMatch = output.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
           ticketData = JSON.parse(jsonMatch[0])
@@ -511,7 +522,18 @@ Write structured markdown findings:
 
     console.log(`[Phase1] Running context gathering via claude...`)
     writeActivity(investigationDir, 'phase1', 'command', 'Running Claude agent with Linear + Slack MCP tools...')
-    const findings = await runClaude(prompt, investigationDir, { investigationDir, phase: 'phase1' })
+    // Single-agent Phase 1 needs tools from all agents
+    const phase1Tools = [
+      ...getAllowedToolsForAgent('pylon'),
+      ...getAllowedToolsForAgent('slack'),
+      ...getAllowedToolsForAgent('linear'),
+      ...getAllowedToolsForAgent('codebase'),
+    ]
+    const findings = await runClaude(prompt, investigationDir, {
+      investigationDir,
+      phase: 'phase1',
+      allowedTools: [...new Set(phase1Tools)]
+    })
     writeFileSync(join(investigationDir, 'phase1-findings.md'), findings)
     writeActivity(investigationDir, 'phase1', 'result', `Context gathered — wrote phase1-findings.md (${findings.length} chars)`)
 
@@ -599,7 +621,8 @@ async function runSingleAgent(agentName, prompt, ticketId, investigationDir, dbH
 
     const output = await runClaude(prompt, investigationDir, {
       investigationDir,
-      phase: `phase1-${agentName}`
+      phase: `phase1-${agentName}`,
+      allowedTools: getAllowedToolsForAgent(agentName)
     })
 
     // Write per-agent findings
@@ -912,7 +935,11 @@ Write complete documents.`
 
     console.log(`[Phase2] Generating documents via claude...`)
     writeActivity(investigationDir, 'phase2', 'command', 'Running Claude agent for document synthesis...')
-    const output = await runClaude(prompt, investigationDir, { investigationDir, phase: 'phase2' })
+    const output = await runClaude(prompt, investigationDir, {
+      investigationDir,
+      phase: 'phase2',
+      allowedTools: getAllowedToolsForAgent('phase2')
+    })
     const sections = parseDelimitedOutput(output)
 
     for (const [fname, content] of Object.entries(sections)) {

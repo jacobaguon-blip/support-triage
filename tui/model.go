@@ -39,6 +39,9 @@ type Investigation struct {
 	Priority          string            `json:"priority"`
 	Status            string            `json:"status"`
 	CurrentCheckpoint string            `json:"current_checkpoint"`
+	CurrentRunNumber  int               `json:"current_run_number"`
+	HasNewReply       int               `json:"has_new_reply"`
+	NewReplySummary   string            `json:"new_reply_summary"`
 	CreatedAt         string            `json:"created_at"`
 	UpdatedAt         string            `json:"updated_at"`
 	AgentStatuses     map[string]string // agent_name -> status
@@ -163,6 +166,18 @@ type model struct {
 	createFocusField   int // 0=ticket, 1=skill, 2=context
 	createError        string
 	creatingInProgress bool
+
+	// Hard reset form
+	showResetForm       bool
+	resetContextArea    textarea.Model
+	resetError          string
+	resettingInProgress bool
+
+	// Customer reply prompt
+	showReplyPrompt  bool
+	replyContextArea textarea.Model
+	replyError       string
+	approvingReply   bool
 }
 
 // Helper methods
