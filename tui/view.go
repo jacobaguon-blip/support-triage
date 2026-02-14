@@ -154,7 +154,7 @@ func (m model) View() string {
 	// Action bar
 	actionBar := m.renderActionBar()
 
-	// Combine everything vertically, then hard-clamp to terminal height
+	// Combine everything vertically
 	output := lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
@@ -162,10 +162,13 @@ func (m model) View() string {
 		actionBar,
 	)
 
-	// Ensure output never exceeds terminal height (prevents scroll-off)
+	// Ensure output is EXACTLY m.height lines (fills terminal, prevents scroll)
 	lines := strings.Split(output, "\n")
 	if len(lines) > m.height {
 		lines = lines[:m.height]
+	}
+	for len(lines) < m.height {
+		lines = append(lines, "")
 	}
 	return strings.Join(lines, "\n")
 }

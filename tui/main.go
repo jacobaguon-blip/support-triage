@@ -138,31 +138,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		// Initialize viewports if not ready
+		// Calculate viewport dimensions (on every resize)
+		sidebarWidth := m.width / 3
+		if sidebarWidth < 40 {
+			sidebarWidth = 40
+		}
+		contentWidth := m.width - sidebarWidth - 6
+		contentHeight := m.height - 10
+
+		findingsHeight := int(float64(contentHeight) * 0.4)
+		terminalHeight := contentHeight - findingsHeight - 8
+
 		if !m.ready {
-			// Calculate viewport dimensions
-			sidebarWidth := m.width / 3
-			if sidebarWidth < 40 {
-				sidebarWidth = 40
-			}
-			contentWidth := m.width - sidebarWidth - 6
-			contentHeight := m.height - 10
-
-			findingsHeight := int(float64(contentHeight) * 0.4)
-			terminalHeight := contentHeight - findingsHeight - 8
-
 			m.findingsViewport = viewport.New(contentWidth-8, findingsHeight-4)
 			m.terminalViewport = viewport.New(contentWidth-8, terminalHeight-4)
 			m.ready = true
+		} else {
+			m.findingsViewport.Width = contentWidth - 8
+			m.findingsViewport.Height = findingsHeight - 4
+			m.terminalViewport.Width = contentWidth - 8
+			m.terminalViewport.Height = terminalHeight - 4
 		}
 		return m, nil
 
 	case investigationsLoadedMsg:
+		wasLoading := m.loading
 		m.investigations = msg.investigations
 		m.loading = false
 
-		// Load agent data for selected investigation if available
-		if len(m.investigations) > 0 && m.selectedIndex < len(m.investigations) {
+		// Only trigger additional data loads on initial load, not tick refreshes
+		// (tick handler already loads agent data independently)
+		if wasLoading && len(m.investigations) > 0 && m.selectedIndex < len(m.investigations) {
 			inv := m.investigations[m.selectedIndex]
 			cmds := []tea.Cmd{
 				loadAgentStatusesCmd(inv.ID),
@@ -358,7 +364,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Periodic refresh for running investigations
 		var cmds []tea.Cmd
 		cmds = append(cmds, tickCmd()) // Queue next tick
-		cmds = append(cmds, loadInvestigationsCmd()) // Keep investigation statuses current
+
+		// Only reload investigations list when something might change
+		hasActive := false
+		for _, inv := range m.investigations {
+			if inv.Status == "running" || inv.Status == "waiting" {
+				hasActive = true
+				break
+			}
+		}
+		if hasActive {
+			cmds = append(cmds, loadInvestigationsCmd())
+		}
 
 		for _, inv := range m.investigations {
 			if inv.Status == "running" || inv.Status == "waiting" {
