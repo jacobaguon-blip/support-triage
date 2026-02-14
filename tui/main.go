@@ -163,8 +163,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case investigationsLoadedMsg:
 		wasLoading := m.loading
-		m.investigations = msg.investigations
 		m.loading = false
+
+		// Skip update if data hasn't changed (prevents re-render flashing)
+		if !wasLoading && investigationsEqual(m.investigations, msg.investigations) {
+			return m, nil
+		}
+		m.investigations = msg.investigations
 
 		// Only trigger additional data loads on initial load, not tick refreshes
 		// (tick handler already loads agent data independently)
@@ -377,25 +382,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, loadInvestigationsCmd())
 		}
 
-		for _, inv := range m.investigations {
-			if inv.Status == "running" || inv.Status == "waiting" {
+		// Only poll agent data for the selected investigation, and only when running
+		selInv := m.getSelectedInvestigation()
+		if selInv != nil && selInv.Status == "running" {
+			cmds = append(cmds, loadAgentStatusesCmd(selInv.ID))
+			agentName := m.getActiveAgentName()
+			if agentName != "" {
 				cmds = append(cmds,
-					loadAgentStatusesCmd(inv.ID),
+					streamAgentLogsCmd(selInv.ID, agentName),
+					loadAgentFindingsCmd(selInv.ID, agentName),
 				)
-
-				// If this is the selected investigation, refresh logs and findings for active tab
-				if inv.ID == m.getSelectedInvestigationID() {
-					agentName := m.getActiveAgentName()
-					if agentName != "" {
-						cmds = append(cmds,
-							streamAgentLogsCmd(inv.ID, agentName),
-							loadAgentFindingsCmd(inv.ID, agentName),
-						)
-					}
-					// Also load phase1 findings for the summary/fallback view
-					cmds = append(cmds, loadPhase1FindingsCmd(inv.ID))
-				}
 			}
+			cmds = append(cmds, loadPhase1FindingsCmd(selInv.ID))
 		}
 
 		// Auto-show reply prompt when selected investigation has a new reply

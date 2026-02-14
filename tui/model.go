@@ -250,3 +250,24 @@ func (m model) getCustomerResponse(investigationID int) *CustomerResponse {
 	}
 	return m.customerResponses[investigationID]
 }
+
+// investigationsEqual checks if two investigation lists have the same data
+// (prevents unnecessary re-renders when tick refreshes return identical data)
+func investigationsEqual(a, b []Investigation) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID ||
+			a[i].Status != b[i].Status ||
+			a[i].CurrentCheckpoint != b[i].CurrentCheckpoint ||
+			a[i].CurrentRunNumber != b[i].CurrentRunNumber ||
+			a[i].HasNewReply != b[i].HasNewReply ||
+			a[i].CustomerName != b[i].CustomerName ||
+			a[i].Classification != b[i].Classification ||
+			a[i].Priority != b[i].Priority {
+			return false
+		}
+	}
+	return true
+}
