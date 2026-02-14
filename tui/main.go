@@ -1009,6 +1009,10 @@ func (m model) cp1CurrentValue() string {
 }
 
 func main() {
+	// Clear scrollback buffer before entering alt screen
+	// ESC[3J clears scrollback, ESC[2J clears screen, ESC[H moves cursor home
+	fmt.Print("\033[3J\033[2J\033[H")
+
 	p := tea.NewProgram(
 		initialModel(),
 		tea.WithAltScreen(),
