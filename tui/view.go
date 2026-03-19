@@ -84,6 +84,7 @@ func (m model) View() string {
 		content = contentPanelStyle.
 			Width(contentWidth - 4).
 			Height(contentHeight - 2).
+			MaxHeight(contentHeight - 2).
 			Render("No investigation selected")
 	}
 
@@ -125,6 +126,7 @@ func (m model) View() string {
 				adjustedContent = contentPanelStyle.
 					Width(adjustedContentWidth - 4).
 					Height(contentHeight - 2).
+					MaxHeight(contentHeight - 2).
 					Render("No investigation selected")
 			}
 
@@ -207,9 +209,21 @@ func (m model) renderSidebar(width, height int) string {
 
 	content := strings.Join(items, "\n")
 
+	// Pre-truncate sidebar content to prevent overflow past the box boundary
+	contentLines := strings.Split(content, "\n")
+	maxLines := height - 6 // account for border + padding
+	if maxLines < 1 {
+		maxLines = 1
+	}
+	if len(contentLines) > maxLines {
+		contentLines = contentLines[:maxLines]
+	}
+	content = strings.Join(contentLines, "\n")
+
 	return sidebarStyle.
 		Width(width - 4).
 		Height(height - 2).
+		MaxHeight(height - 2).
 		Render(content)
 }
 
@@ -282,6 +296,7 @@ func (m model) renderTabContent(width, height int) string {
 		tabContent = contentPanelStyle.
 			Width(width - 4).
 			Height(height - 2 - bannerHeight).
+			MaxHeight(height - 2 - bannerHeight).
 			Render("Unknown tab")
 	}
 
@@ -379,6 +394,7 @@ func (m model) renderCheckpointReview(inv *Investigation, width, height int) str
 		return contentPanelStyle.
 			Width(width - 4).
 			Height(height - 2).
+			MaxHeight(height - 2).
 			Render(placeholder)
 	}
 
@@ -483,6 +499,7 @@ func (m model) renderCheckpointReview(inv *Investigation, width, height int) str
 	return contentPanelStyle.
 		Width(width - 4).
 		Height(height - 2).
+		MaxHeight(height - 2).
 		Render(content)
 }
 
@@ -579,6 +596,7 @@ func (m model) renderAgentView(width, height int) string {
 				return contentPanelStyle.
 					Width(width - 4).
 					Height(height - 2).
+					MaxHeight(height - 2).
 					Render(inner)
 			}
 			// Complete but no findings file either
@@ -588,6 +606,7 @@ func (m model) renderAgentView(width, height int) string {
 			return contentPanelStyle.
 				Width(width - 4).
 				Height(height - 2).
+				MaxHeight(height - 2).
 				Render(placeholder)
 		}
 
@@ -603,6 +622,7 @@ func (m model) renderAgentView(width, height int) string {
 		return contentPanelStyle.
 			Width(width - 4).
 			Height(height - 2).
+			MaxHeight(height - 2).
 			Render(placeholder)
 	}
 
@@ -627,6 +647,7 @@ func (m model) renderAgentView(width, height int) string {
 	return contentPanelStyle.
 		Width(width - 4).
 		Height(height - 2).
+		MaxHeight(height - 2).
 		Render(content)
 }
 
@@ -808,6 +829,7 @@ func (m model) renderSummaryView(width, height int) string {
 		return contentPanelStyle.
 			Width(width - 4).
 			Height(height - 2).
+			MaxHeight(height - 2).
 			Render("No investigation selected")
 	}
 
@@ -838,6 +860,7 @@ func (m model) renderSummaryView(width, height int) string {
 	return contentPanelStyle.
 		Width(width - 4).
 		Height(height - 2).
+		MaxHeight(height - 2).
 		Render(content)
 }
 
@@ -990,6 +1013,7 @@ func (m model) renderKBView(width, height int) string {
 	return contentPanelStyle.
 		Width(width - 4).
 		Height(height - 2).
+		MaxHeight(height - 2).
 		Render("KB Article view - V2 feature")
 }
 
@@ -1533,6 +1557,7 @@ func (m model) renderDebugOverlay(width, height int) string {
 	return debugOverlayStyle.
 		Width(width - 4).
 		Height(height - 2).
+		MaxHeight(height - 2).
 		Render(content)
 }
 

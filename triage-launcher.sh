@@ -25,10 +25,11 @@ NC='\033[0m' # No Color
 TICKET_ID="$1"
 MODE="new"
 AGENT_MODE="team"
+FORCE=false
 
 if [ -z "$TICKET_ID" ]; then
     echo -e "${RED}Error: Ticket ID required${NC}"
-    echo "Usage: $0 <ticket_id> [--resume] [--single]"
+    echo "Usage: $0 <ticket_id> [--resume] [--single] [--force]"
     exit 1
 fi
 
@@ -40,6 +41,9 @@ for arg in "$@"; do
             ;;
         --single)
             AGENT_MODE="single"
+            ;;
+        --force)
+            FORCE=true
             ;;
     esac
 done
@@ -80,12 +84,16 @@ if [ "$MODE" = "resume" ]; then
 else
     # New investigation
     if [ -n "$EXISTING" ]; then
-        echo -e "${YELLOW}Warning: Investigation for ticket $TICKET_ID already exists${NC}"
-        echo "Use --resume to continue, or delete the existing investigation first"
-        read -p "Overwrite existing investigation? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
+        if [ "$FORCE" = "true" ]; then
+            echo -e "${YELLOW}Warning: Overwriting existing investigation (--force)${NC}"
+        else
+            echo -e "${YELLOW}Warning: Investigation for ticket $TICKET_ID already exists${NC}"
+            echo "Use --resume to continue, or delete the existing investigation first"
+            read -p "Overwrite existing investigation? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
         fi
     fi
 

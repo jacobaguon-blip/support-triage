@@ -59,6 +59,12 @@ One-click escalation that auto-packages ticket summary, findings, repro steps, s
 
 ## P4 — Nice to Have
 
+### Campaign: Inline Access Profile Entitlements View
+**Requested by:** Kayak (Pylon #8401) | **Date:** 2026-02-11
+**Spec:** `features/campaign-access-profile-entitlement-inline-view.md`
+During campaign scope setup, allow users to expand or view access profile entitlements inline without navigating away to Admin → Access Profiles. Reduces context-switching during campaign configuration.
+**Status:** Documented, ready for Linear issue creation
+
 ### Bulk Actions Bar
 Checkbox selection on investigation list for bulk reassign, prioritize, tag.
 

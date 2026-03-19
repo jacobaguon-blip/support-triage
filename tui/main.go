@@ -193,8 +193,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
+		// Only animate spinner when something is loading/running to avoid idle re-renders
+		hasRunning := false
+		for _, inv := range m.investigations {
+			if inv.Status == "running" {
+				hasRunning = true
+				break
+			}
+		}
+		if m.loading || hasRunning || m.resettingInProgress || m.creatingInProgress || m.approvingReply {
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+		return m, nil
 
 	case summaryLoadedMsg:
 		if msg.summary != nil {
