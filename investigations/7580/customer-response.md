@@ -1,11 +1,11 @@
 Hi Sam,
 
-Following up on this one — we wanted to give you an update since there's been some progress on the product side.
+Wanted to circle back on this since there's been some movement. You were right that "Assigned to" only covers open tasks, so it's not going to help for historical approver tracking.
 
-You're right that the "Assigned to" filter only covers open tasks, so it won't help for seeing who approved what historically. Since we last spoke, our team has shipped a "Reviewed by" filter on the task log that lets you filter completed tasks by who acted on them. You should see it in your task log filters now — that may get you closer to what you need for tracking someone like JonD's activity.
+The good news is we've since shipped a "Reviewed by" filter on the task log. It lets you filter completed tasks by who acted on them, so it should get you closer to seeing everything JonD has interacted with. Check your task log filters and let us know if it shows up for you.
 
-On top of that, we're actively building a dedicated "Approved by" filter for the task log as well. That one's in progress with our engineering team now, so you should see it land soon.
+We're also building a dedicated "Approved by" filter, which is in active development now. And the API workaround Jacob shared (assignedOrStepApproverUserId on the search tasks endpoint) still works if you need a quick programmatic pull in the meantime.
 
-In the meantime, the API workaround Jacob shared previously (using assignedOrStepApproverUserId on the search tasks endpoint) still works if you need a quick programmatic pull. And we've logged your feedback about surfacing this in the analytics dashboard — that's on our product team's radar.
+Your feedback about surfacing this in the analytics dashboard has been logged with our product team.
 
-Let us know if the "Reviewed by" filter works for your use case, or if you have any questions!
+Let us know if the "Reviewed by" filter covers what you need!
