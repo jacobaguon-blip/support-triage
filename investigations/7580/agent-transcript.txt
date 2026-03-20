@@ -1,0 +1,68 @@
+INVESTIGATION TRANSCRIPT — Pylon #7580
+Date: 2026-03-20
+Mode: Shadow (parallel with primary triage session)
+
+=== PHASE 0: CLASSIFICATION ===
+[15:35] Fetched Pylon ticket #7580
+  - Customer: Sam Asbury (sama@kraken.com), Kraken (Lighthouse Customer)
+  - Title: "Viewing task log and user data information"
+  - Tags: Product Defect
+  - Source: Slack
+  - State: new
+
+[15:36] Fetched full conversation (13 messages)
+  - Sam wants to filter task log by approver (per user)
+  - Marcus confirmed gap: "Assigned to" = open tasks only, no "Approved By" filter
+  - Marcus created product ticket (IGA-999)
+  - Jacob provided API workarounds
+  - Sam: "Would be cool to see this in the analytics dashboard/UI"
+
+[15:36] Classification: FEATURE REQUEST (reclassified from Product Defect)
+  - Reasoning: "Assigned to" filter works correctly, customer wants new "Approved By" filter
+  - Not a bug — feature gap
+
+[15:37] Checkpoint 1: Classification approved, proceeding to Phase 1
+
+=== PHASE 1: PARALLEL CONTEXT GATHERING ===
+
+--- Roadmap Researcher ---
+[15:38] Linear search: "approved by filter task log"
+  - VIS-56: "Add filter for approved by in the task log" — In Progress, High, Visibility team
+    - Assigned: Irene Pham
+    - PR #13181 submitted
+    - Customer needs: Kraken, Zinnia
+  - IGA-999: "Task Log: Add filter for 'approved by'" — Backlog, Core IGA
+    - Created same day as Pylon ticket by Marcus
+    - Linked to Pylon #8438 (Qualtrics)
+  - TKT-61: "Filter Tasks by Previously Interacting Users" — DONE (2026-02-10)
+    - PR #13487: "Display previous approvers and add 'Reviewed by' filter"
+    - Customers: Amperity, Chime, Clario, PriceSmart
+
+--- Similar Requests Researcher ---
+[15:38] Linear search: "task log user filter approver"
+  - Confirmed same results as above
+  - Additional: VIS-73 (task log reporting gaps), EPD-597 (filter timeouts, canceled)
+
+--- Slack Context Researcher ---
+[15:38] Slack search: "task log approved by filter"
+  - #eng-team-visibility (2026-01-26): Irene Pham posted PR #13181 for approved by filter
+  - Alex Tebbs: concerned about query performance with new task search filters
+  - #eng-team-iga-core (2026-02-09): Alan Lee discussing "Reviewed by" vs "Assigned to" column overlap
+  - #product-visibility (2025-11-05): Marcus discussing analytics improvements
+
+[15:39] Phase 1 complete — all three research tracks returned
+
+=== PHASE 2: SYNTHESIS ===
+[15:40] Key insight: Feature is ACTIVELY being built
+  - TKT-61 (Done) — "Reviewed by" filter shipped Feb 2026
+  - VIS-56 (In Progress) — "Approved By" filter, PR #13181
+  - IGA-999 (Backlog) — Duplicate of VIS-56
+
+[15:41] Generated summary.md
+[15:41] Generated customer-response.md
+[15:41] Generated metrics.json
+
+=== COMPLETION ===
+Status: ANALYSIS_COMPLETED
+No Linear issues created (existing issues cover this)
+No Pylon messages sent (shadow mode)
