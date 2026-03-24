@@ -1,0 +1,55 @@
+{
+  "investigation_id": 8544,
+  "related_tickets": [9212, 9256],
+  "customer": "Shakepay",
+  "contact": "James Jee",
+  "classification": "connector_bug",
+  "connector": "google-workspace",
+  "product_area": "connectors",
+  "priority": "P1",
+  "issues_identified": 4,
+  "issue_breakdown": {
+    "A": "GWS connector domain field reverts on sync — EPD-1848 filed, linked to Pylon",
+    "B": "SSO blocked for secondary domain contractors — likely resolves with Issue A fix (Sean's theory: directory order + Rippling personal emails)",
+    "C": "GWS automation workflow examples — RESOLVED, response sent with full action list",
+    "D": "GWS connector actions enablement — RESOLVED per Pylon #9256"
+  },
+  "linear_tickets": {
+    "created": "EPD-1848",
+    "related": ["CXH-649", "CXH-839", "CXP-37", "IGA-891"]
+  },
+  "phase_1_agents": [
+    "connector-code-specialist",
+    "issue-historian",
+    "slack-context-researcher"
+  ],
+  "sources_cited": {
+    "code_files": 6,
+    "linear_issues": 8,
+    "slack_threads": 6,
+    "pylon_tickets": 4,
+    "docs_pages": 3,
+    "knowledge_base": 1
+  },
+  "validation": {
+    "rounds": 4,
+    "final_claims": 25,
+    "verified": 22,
+    "general_knowledge": 3,
+    "removed": 1,
+    "hallucinations": 0,
+    "contradictions": 0,
+    "security_flags": 0,
+    "score": 100
+  },
+  "checkpoints": {
+    "checkpoint_1": "approved",
+    "checkpoint_2": "approved",
+    "checkpoint_3": "completed",
+    "checkpoint_4": "completed"
+  },
+  "status": "response_sent_waiting_on_customer",
+  "created_at": "2026-03-19T20:00:00Z",
+  "response_sent_at": "2026-03-20T18:25:00Z",
+  "last_updated": "2026-03-20T20:43:00Z"
+}

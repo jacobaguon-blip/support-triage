@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-03-24
+- `12:57` -- **Added** `investigations/8544/metrics.json`
 - `12:56` -- **Updated** `investigations/8544/summary.md`
 
 ## 2026-03-20
