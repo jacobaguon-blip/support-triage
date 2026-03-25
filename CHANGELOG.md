@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## 2026-03-25
+- `16:15` -- **Added** `CLAUDE.md`
 - `16:14` -- **Added** `docs/ui-architecture.md`
 - `16:13` -- **Added** `docs/agent-instructions.md`
 
