@@ -134,8 +134,9 @@ cat > "$PROMPT_FILE" <<EOF
 You are conducting a support ticket investigation using the Support Ticket Triage System.
 
 Read the following files for complete context:
-1. $CLAUDE_MD — Full agent instructions and protocols
-2. $SETTINGS_FILE — System configuration
+1. $CLAUDE_MD — Project overview and conventions
+2. $TRIAGE_DIR/docs/agent-instructions.md — Agent roles, classification, output templates, checkpoints
+3. $SETTINGS_FILE — System configuration
 
 ## Your Task
 
