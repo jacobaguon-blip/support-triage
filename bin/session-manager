@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+
+/**
+ * Support Triage Session Manager CLI
+ * Entry point for the terminal UI
+ */
+
+require('../ui/tui/app.js');

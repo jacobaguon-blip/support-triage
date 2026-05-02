@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+/**
+ * Support Triage CLI
+ * Main entrypoint for all triage commands
+ */
+
+import { program } from 'commander';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Commands
+import createCommand from '../lib/cli/commands/create.js';
+import statusCommand from '../lib/cli/commands/status.js';
+import approveCommand from '../lib/cli/commands/approve.js';
+import logsCommand from '../lib/cli/commands/logs.js';
+import listCommand from '../lib/cli/commands/list.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+program
+  .name('triage')
+  .description('Support Ticket Triage System CLI')
+  .version('2.0.0');
+
+// triage create
+program
+  .command('create')
+  .description('Create a new investigation')
+  .requiredOption('--ticket <id>', 'Ticket number')
+  .requiredOption('--skill <skill>', 'Investigation skill (troubleshoot, feature-request, kb-article, research)')
+  .option('--customer <name>', 'Customer name')
+  .option('--context <text>', 'Additional context')
+  .option('--auto-proceed', 'Auto-proceed through checkpoints (for testing)')
+  .action(createCommand);
+
+// triage status
+program
+  .command('status')
+  .description('Check investigation status')
+  .argument('<id>', 'Investigation ID')
+  .option('--json', 'Output as JSON')
+  .action(statusCommand);
+
+// triage approve
+program
+  .command('approve')
+  .description('Approve a checkpoint')
+  .argument('<id>', 'Investigation ID')
+  .argument('<checkpoint>', 'Checkpoint name')
+  .option('--feedback <text>', 'Approval feedback/notes')
+  .action(approveCommand);
+
+// triage logs
+program
+  .command('logs')
+  .description('View investigation logs')
+  .argument('<id>', 'Investigation ID')
+  .option('--agent <name>', 'Show specific agent log (slack, linear, pylon, codebase)')
+  .option('-f, --follow', 'Follow log output (like tail -f)')
+  .option('-n, --tail <lines>', 'Show last N lines', '50')
+  .action(logsCommand);
+
+// triage list
+program
+  .command('list')
+  .description('List investigations')
+  .option('--status <status>', 'Filter by status (running, waiting, completed)')
+  .option('--json', 'Output as JSON')
+  .action(listCommand);
+
+program.parse();
