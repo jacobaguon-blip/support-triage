@@ -59,5 +59,19 @@
     "slack",
     "pylon",
     "linear"
-  ]
+  ],
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/cheatsheet-drift.sh",
+            "timeout": 10,
+            "statusMessage": "Checking CLAUDE.md freshness..."
+          }
+        ]
+      }
+    ]
+  }
 }
