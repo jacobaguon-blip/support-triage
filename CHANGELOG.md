@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-05-29
+- `02:00` -- chore: nightly sweep — update .claude (1 file) _(session `f53d9ea1`)_
+  - `.claude/settings.local.json`
+
 ## 2026-03-25
 - `16:16` -- **Updated** `triage-launcher.sh`
 - `16:15` -- **Added** `CLAUDE.md`
